@@ -55,6 +55,7 @@ button:disabled{cursor:default}button:focus-visible,select:focus-visible,input:f
 #micHint{margin:12px 0;color:var(--muted);text-align:center}
 .hint{text-align:center;color:var(--muted);margin:14px 0}.options button.correct{background:#336d39}.options button.incorrect{background:#9c352c}.options button:disabled:not(.correct):not(.incorrect){opacity:.55}
 #quizFigure svg{display:block;width:min(100%,270px);height:auto;margin:6px auto}#quizFeedback{min-height:1.5em}[hidden]{display:none!important}
+.quiz-explanation{display:block;margin-top:4px;color:var(--muted);font-size:14px}
 @media(max-width:650px){
   .settings,.figure-options div{grid-template-columns:repeat(2,minmax(0,1fr))}
   .settings{gap:10px}
@@ -670,6 +671,18 @@ const quizPool = [...new Set([
 });
 quizPool.push({tied:true,label:"Ligadura de prolongamento"});
 let correct=0,answers=0,lastQuiz,deck=[];
+const quizDurations = {
+  1:"1/4 de tempo",2:"1/2 tempo",3:"3/4 de tempo",4:"1 tempo",
+  6:"1 e 1/2 tempo",8:"2 tempos",12:"3 tempos",16:"4 tempos"
+};
+function quizExplanation(target) {
+  if (target.tied) {
+    return "A ligadura soma as durações sem um novo ataque. Aqui, duas semínimas soam por 2 tempos.";
+  }
+  const article=target.rest ? "A " : "Uma ";
+  const silence=target.rest ? " de silêncio" : "";
+  return article+target.label.toLowerCase()+" dura "+quizDurations[target.duration]+silence+" quando a semínima vale 1 tempo.";
+}
 function quizNotation(target) {
   if (target.tied) {
     const note={duration:4};
@@ -697,7 +710,10 @@ function question() {
     button.addEventListener("click",()=>{
       answers++; correct+=Number(option===target);
       $("score").textContent=correct+" acertos de "+answers;
-      $("quizFeedback").textContent=option===target?"Acertou!":"Resposta correta · "+target.label;
+      const explanation=document.createElement("span");
+      explanation.className="quiz-explanation";
+      explanation.textContent=quizExplanation(target);
+      $("quizFeedback").replaceChildren(option===target?"Acertou!":"Resposta correta · "+target.label,explanation);
       [...$("options").children].forEach((item,index)=>{
         item.disabled=true;
         if (options[index]===target) item.classList.add("correct");

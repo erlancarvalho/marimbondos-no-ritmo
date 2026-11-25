@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Marimbondos no Ritmo</title>
+<style>
+*{box-sizing:border-box}
+:root{color-scheme:dark;--cream:#fff9e8;--muted:#c0cfc2;--border:#476357;--yellow:#f7ce50;--panel:#203b31}
+body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% 4%,#2b4b3d,#132923 70%);color:var(--cream);font:16px system-ui,sans-serif}
+main{max-width:970px;margin:auto;padding:clamp(10px,3vw,32px)}
+header{display:flex;align-items:center;gap:clamp(10px,2vw,22px);margin:0 0 20px}
+.logo{display:flex;align-items:center;justify-content:center;gap:4px;flex:none;width:clamp(42px,9vw,76px);aspect-ratio:1;border:1.5px solid var(--yellow);border-radius:38%;transform:rotate(-9deg)}
+.logo i{width:7%;height:46%;border-radius:12px;background:var(--yellow)}.logo i:nth-child(1),.logo i:nth-child(4){height:34%}.logo i:nth-child(2){height:67%}
+h1{font-size:clamp(25px,6.2vw,60px);line-height:1.02;margin:0;letter-spacing:-.065em;font-weight:950}h1 span{color:var(--yellow)}
+header p{color:var(--muted);margin:7px 0 0;font-size:clamp(15px,3vw,27px)}
+nav,.actions,.options{display:grid;gap:8px}nav,.options{grid-template-columns:repeat(2,minmax(0,1fr))}nav{background:#11261e;border:1px solid var(--border);border-radius:18px;padding:6px;margin-bottom:15px}
+.actions{grid-template-columns:repeat(3,minmax(0,1fr))}
+button,select,input{font:inherit}button,select,input[type=number]{min-height:44px;border:1px solid var(--border);border-radius:12px;padding:9px 12px;background:var(--panel);color:inherit}
+button{cursor:pointer;font-weight:750}nav button{background:transparent;border:0;padding-inline:4px;color:var(--muted)}nav button[aria-pressed=true]{background:#345347;color:var(--cream)}
+button:disabled{cursor:default}button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--yellow);outline-offset:3px}
+.primary{background:var(--yellow);color:#231c09;border-color:var(--yellow)}
+.settings{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;align-items:end;color:var(--muted)}
+.settings label{display:grid;gap:5px;font-size:14px}.settings select,.settings input{width:100%;color:var(--cream);font-weight:700}
+.settings select{appearance:none;padding-right:27px;background:var(--panel) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7'%3E%3Cpath fill='%23c0cfc2' d='M0 0h12L6 7z'/%3E%3C/svg%3E") right 10px center no-repeat}
+.settings .check{grid-column:1/-1;justify-self:end;display:flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:12px;padding:6px 10px;color:var(--cream);cursor:pointer}.settings .check input{width:auto;accent-color:var(--yellow)}
+.card{background:#fdf7e7;color:#202921;border:1px solid #f9e4b9;border-radius:21px;padding:clamp(10px,2.2vw,22px);margin:14px 0 16px;box-shadow:0 6px #10231c}
+.meta{display:flex;justify-content:space-between;align-items:center;gap:8px;font-weight:800}.meta span:last-child{background:#e6e7d5;border-radius:8px;padding:4px 8px}
+.sheet{margin-top:8px}.sheet svg{display:block;width:100%;height:auto}
+#blow{display:grid;grid-template-columns:auto auto;gap:10px;align-items:center;justify-content:center;text-align:left;width:100%;margin-top:10px;min-height:104px;font-size:clamp(23px,5vw,38px);background:#294438;color:var(--cream);touch-action:none;user-select:none}
+#blow small{display:block;font-size:clamp(12px,2.6vw,20px);font-weight:550}#blow.down{background:var(--yellow);color:#231c09}#blow svg{width:36px}
+.hint{text-align:center;color:var(--muted);margin:14px 0}.options button.correct{background:#336d39}.options button.incorrect{background:#9c352c}.options button:disabled:not(.correct):not(.incorrect){opacity:.55}
+#quizFigure svg{display:block;width:min(100%,270px);height:auto;margin:6px auto}#quizFeedback{min-height:1.5em}[hidden]{display:none!important}
+@media(max-width:650px){.settings{grid-template-columns:repeat(2,minmax(0,1fr))}.actions button{padding-inline:4px;font-size:14px}}
+</style>
+</head>
+<body><main>
+<header><span class="logo" aria-hidden="true"><i></i><i></i><i></i><i></i></span><div><h1>Marimbondos <span>no ritmo</span></h1><p>Leitura rítmica para fanfarra</p></div></header>
+<nav aria-label="Modo de treino"><button id="readTab" aria-pressed="true">Treino de leitura</button><button id="quizTab" aria-pressed="false">Quiz de figuras</button></nav>
+<section id="reading" aria-label="Treino de leitura">
+<div class="settings">
+<label>Compasso<select id="meter"><option value="2">2/4</option><option value="4">4/4</option></select></label>
+<label>Compassos por treino<select id="length"><option value="2">2 compassos</option><option value="4" selected>4 compassos</option></select></label>
+<label>Andamento <span><input id="bpm" type="number" min="40" max="200" value="92" aria-label="Andamento BPM"> BPM</span></label>
+<label>Figuras<select id="level"><option value="0">Básicas</option><option value="1" selected>Com síncopes</option><option value="2">Com semicolcheias</option><option value="3">Com quialteras</option><option value="4">Com ligaduras</option><option value="5">Quiálteras aumentativas</option><option value="6">Quiálteras diminutivas</option></select></label>
+<label class="check"><input id="click" type="checkbox" checked>Metrônomo ligado</label>
+</div>
+<div class="card"><div class="meta"><span id="phraseLabel"></span><span id="status" role="status">Pronto</span></div><div id="sheet" class="sheet"></div></div>
+<div class="actions"><button id="start" class="primary">Iniciar</button><button id="listen">Ouvir a frase</button><button id="next">Nova frase</button></div>
+<button id="blow" class="primary" disabled><svg viewBox="0 0 40 48" aria-hidden="true"><path d="M6 15v18m14-28v38m14-28v18" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/></svg><span>Assoprar<small>Segure o botão ou a barra de espaço</small></span></button>
+<p class="hint">Segure pelas ligaduras, solte nas pausas e aperte de novo a cada ataque.</p>
+</section>
+<section id="quiz" aria-label="Quiz de figuras" hidden>
+<div class="card"><div class="meta"><span>Que figura é esta?</span><span id="score">0 acertos de 0</span></div><div id="quizFigure"></div></div>
+<div id="options" class="options"></div><p id="quizFeedback" role="status"></p><button id="nextQuiz" class="primary" hidden>Próxima figura</button>
+</section>
+</main><script>
+"use strict";
+const $ = id => document.getElementById(id);
+const figures = {
+  1:["Semicolcheia","𝅘𝅥𝅯","𝄿"],2:["Colcheia","𝅘𝅥𝅮","𝄾"],
+  3:["Colcheia pontuada","𝅘𝅥𝅮","𝄾"],4:["Semínima","𝅘𝅥","𝄽"],
+  6:["Semínima pontuada","𝅘𝅥","𝄽"],8:["Mínima","𝅗𝅥","𝄼"],
+  12:["Mínima pontuada","𝅗𝅥","𝄼"],16:["Semibreve","𝅝","𝄻"]
+};
+// Patterns are two beats long. Negative values are rests, 0 is a
+// three-colcheia tuplet, and "+2" or "+4" continues the preceding pitch.
+const basicPatterns = [[4,4],[2,2,4],[4,-2,2],[2,-2,2,2],[8],[-4,2,2],[2,2,2,2]];
+const syncopatedPatterns = [[2,4,2],[6,-2],[2,2,-2,2],[2,4,-2]];
+const tiedPatterns = [[2,2,"+2",2],[-2,2,"+4"],[2,2,"+2",-2],[4,"+2",2],[2,2,"+4"]];
+const sixteenthPatterns = [[3,1,4],[1,1,2,4],[2,1,1,4],[4,1,1,1,1],[1,1,-2,2,2],[-1,1,2,4]];
+const tuplets = {
+  diminuida:{count:3,normal:2,duration:2,label:"Tercina de colcheias (diminutiva)"},
+  aumentada:{count:2,normal:3,duration:2,label:"Duína de colcheias (aumentativa)"}
+};
+const tupletPatterns = {
+  diminuida:[["diminuida",4],[4,"diminuida"],[-4,"diminuida"],["diminuida",2,2]],
+  aumentada:[["aumentada",2],[2,"aumentada"],[-2,"aumentada"],["aumentada",-2]]
+};
+const fullBarPatterns = [[16],[-16],[12,4],[4,12],[8,-8],[-8,8]];
+const endings = [[4,4],[2,2,4],[4,-4],[8]];
+const contours = [[0,1,2,1],[0,2,3,2],[0,0,1,2],[0,-1,0,1]];
+const SUBDIVISIONS = 3;
+const pitches = [67,69,71,72,74,76];
+const names = ["Sol","Lá","Si","Dó","Ré","Mi"];
+const pick = items => items[Math.floor(Math.random()*items.length)];
+function shuffle(items) {
+  const copy = [...items];
+  for (let i=copy.length-1;i>0;i--) {
+    const j = Math.floor(Math.random()*(i+1));
+    [copy[i],copy[j]] = [copy[j],copy[i]];
+  }
+  return copy;
+}
+function makePhrase(meter,length,level) {
+  const cellsPerBar = meter/2;
+  const cellCount = length*cellsPerBar;
+  const patterns = [...basicPatterns];
+  if (level >= 1) patterns.push(...syncopatedPatterns);
+  if (level >= 2) patterns.push(...sixteenthPatterns);
+
+  const motif = pick(basicPatterns.filter(pattern=>pattern.length > 1));
+  const contour = pick(contours);
+  const response = shuffle(patterns.filter(pattern=>pattern!==motif));
+  const repeat = Math.floor(length/2)*cellsPerBar;
+  const variations = Array.from({length:cellCount-1},(_,i)=>i).filter(i=>i!==0 && i!==repeat);
+  if (!variations.length) variations.push(0);
+  const tupletKinds = level===5 ? ["aumentada"] : level===6 ? ["diminuida"]
+    : level===3 ? shuffle(Object.keys(tuplets))
+    : level>=1 && Math.random()<.48 ? [pick(Object.keys(tuplets))] : [];
+  const tupletSlots = shuffle([...variations,cellCount-1]);
+  const groups = new Map(tupletKinds.map((kind,i)=>[tupletSlots[i],kind]));
+  const tieSlots = [...variations,cellCount-1].filter(cell=>!groups.has(cell));
+  const tiedCell = tieSlots.length && (level===4 || (level>=1 && Math.random()<.55))
+    ? pick(tieSlots) : -1;
+  let degree = 0;
+  const bars = Array.from({length},()=>[]);
+  for (let cell=0;cell<cellCount;cell++) {
+    const closing = cell===cellCount-1;
+    const repeatsMotif = cell===0 || cell===repeat;
+    const shape = pick(contours);
+    const canUseFullBar = meter===4 && level>=1 && cell%2===0 &&
+      !groups.has(cell) && !groups.has(cell+1) && tiedCell!==cell && tiedCell!==cell+1;
+    const fullBar = canUseFullBar && Math.random()<.2;
+    const pattern = fullBar ? pick(fullBarPatterns)
+      : cell===tiedCell ? pick(closing ? [[2,2,"+4"],[-2,2,"+4"]] : tiedPatterns)
+      : groups.has(cell) ? pick(tupletPatterns[groups.get(cell)])
+      : closing ? pick(endings)
+      : repeatsMotif ? motif : (response.shift() ?? pick(patterns));
+    const tokens = pattern.flatMap(value=>{
+      const group=tuplets[value];
+      if (!group) return [{value}];
+      return Array.from({length:group.count},(_,position)=>({
+        value:group.duration, group, position
+      }));
+    });
+    const lastAttack = tokens.filter(token=>typeof token.value==="number" && token.value>0).length;
+    const offsets = repeatsMotif ? contour : shape;
+    const anchor = closing ? 1 : cell===0 ? 1 : repeatsMotif ? 2 : Math.max(1,Math.min(3,degree));
+    let attack=0;
+    for (const {value,group,position} of tokens) {
+      const tied = typeof value==="string";
+      const rest = value<0;
+      const duration = tied ? Number(value) : Math.abs(value);
+      if (!rest && !tied) {
+        const offset = offsets[attack++ % offsets.length];
+        degree = closing && attack===lastAttack ? 0 : Math.max(0,Math.min(5,anchor+offset));
+      }
+      bars[Math.floor(cell/cellsPerBar)].push({
+        duration, rest, tied, group, position, degree,
+        subticks:duration*SUBDIVISIONS*(group ? group.normal/group.count : 1)
+      });
+    }
+    if (fullBar) cell++;
+  }
+  return bars;
+}
+const line = (x1,y1,x2,y2,width=1) => '<path d="M'+x1+' '+y1+'L'+x2+' '+y2+'" stroke="currentColor" stroke-width="'+width+'" fill="none"/>';
+function figure(event,x,y,beamY) {
+  const {duration,rest} = event;
+  let mark;
+  if (rest) {
+    if (duration >= 8) {
+      mark = '<rect x="'+(x-7)+'" y="'+(duration===16?38:43)+'" width="14" height="5" fill="currentColor"/>';
+    } else if (duration >= 4) {
+      mark = '<path d="M'+(x-3)+' 37 l7 8 -5 6 5 6 c-9 -3 -8 1 -5 5" stroke="currentColor" stroke-width="2.5" fill="none"/>';
+    } else {
+      mark = '<path d="M'+(x+5)+' 43 l-7 16 '+(duration===1?'m4 -11 q-11 5 -11 -1 ':'')+'" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="'+(x-3)+'" cy="44" r="3" fill="currentColor"/>';
+    }
+    y = 51;
+  } else {
+    const stemUp = beamY!==undefined || y >= 48;
+    const stemX = x+(stemUp?6:-6);
+    const tip = beamY ?? y+(stemUp?-28:28);
+    mark = '<ellipse cx="'+x+'" cy="'+y+'" rx="6.5" ry="4.1" transform="rotate(-18 '+x+' '+y+')" stroke="currentColor" stroke-width="1.5" fill="'+(duration>=8?'none':'currentColor')+'"/>';
+    if (duration < 16) mark += line(stemX,y,stemX,tip,1.6);
+    if (duration <= 3 && beamY===undefined) {
+      const direction = stemUp ? 1 : -1;
+      const flag = offset => '<path d="M'+stemX+' '+(tip+offset)+'q 13 '+(direction*9)+' 7 '+(direction*16)+'" stroke="currentColor" stroke-width="2" fill="none"/>';
+      mark += flag(0)+(duration===1?flag(6*direction):"");
+    }
+  }
+  if ([3,6,12].includes(duration)) mark += '<circle cx="'+(x+12)+'" cy="'+(y-2)+'" r="1.8" fill="currentColor"/>';
+  return mark;
+}
+function tupletMark(group,start,end,beamY) {
+  const center=(start+end)/2+6;
+  const top=beamY-7;
+  return line(start+6,beamY,end+6,beamY,3)
+    +line(start,top,start,top+4)+line(start,top,center-8,top)
+    +line(center+8,top,end+9,top)+line(end+9,top,end+9,top+4)
+    +'<text x="'+center+'" y="'+(top+4)+'" font-size="13" font-weight="750" text-anchor="middle">'+group.count+'</text>';
+}
+function eventName(event) {
+  const label = event.group ? event.group.label : figures[event.duration][0];
+  return event.rest ? 'Pausa de '+label.toLowerCase() : label+' em '+names[event.degree]+(event.tied?' ligada à anterior':'');
+}
+let bars, timeline, phraseNumber=0, run=null, audio, playingNote, pressed=false, generation=0;
+function draw(active=-1) {
+  let index=0;
+  $("sheet").innerHTML = Array.from({length:Math.ceil(bars.length/2)},(_,row)=>{
+    const pair = bars.slice(row*2,row*2+2);
+    const meter = +$("meter").value;
+    const width = meter===4 ? 760 : 520;
+    const space = (width-68)/pair.length;
+    let content = [28,38,48,58,68].map(y=>line(7,y,width-5,y)).join("");
+    content += '<text x="14" y="65" font-size="53" font-family="Bravura, Noto Music, Apple Symbols, Segoe UI Symbol, serif">𝄞</text><text x="44" y="45" font-size="18" font-weight="700">'+meter+'<tspan x="44" y="64">4</tspan></text>';
+    pair.forEach((events,b)=>{
+      let subtick=0, previousX, beamY;
+      let beamUntil=-1;
+      const start=65+b*space;
+      const spacing=(space-25)/(meter*4*SUBDIVISIONS);
+      events.forEach((event,eventIndex)=>{
+        const x=start+14+subtick*spacing;
+        const y=58-event.degree*5;
+        if (index===active) content+='<rect x="'+(x-10)+'" y="13" width="22" height="69" rx="6" fill="#ffd34c"/>';
+        if (event.group && event.position===0) {
+          const topDegree=Math.max(...events.slice(eventIndex,eventIndex+event.group.count).map(note=>note.degree));
+          beamY=58-topDegree*5-21;
+          const end=x+event.subticks*(event.group.count-1)*spacing;
+          content+=tupletMark(event.group,x,end,beamY);
+        }
+        if (!event.group && eventIndex>beamUntil && !event.rest && event.duration<=3) {
+          const beatEnd=(Math.floor(subtick/(4*SUBDIVISIONS))+1)*4*SUBDIVISIONS;
+          const group=[event];
+          let groupEnd=subtick+event.subticks;
+          for (const next of events.slice(eventIndex+1)) {
+            if (next.group || next.rest || next.duration>3 || groupEnd+next.subticks>beatEnd) break;
+            group.push(next);
+            groupEnd+=next.subticks;
+          }
+          if (group.length>1) {
+            beamUntil=eventIndex+group.length-1;
+            beamY=Math.min(...group.map(note=>58-note.degree*5))-23;
+            const xEnd=x+(groupEnd-subtick-group.at(-1).subticks)*spacing;
+            content+=line(x+6,beamY,xEnd+6,beamY,3);
+            let position=x+6;
+            group.forEach((note,i)=>{
+              const following=group[i+1];
+              if (note.duration===1 && following?.duration===1) {
+                content+=line(position,beamY+5,position+note.subticks*spacing,beamY+5,3);
+              } else if (note.duration===1 && group[i-1]?.duration!==1) {
+                const direction=following ? 1 : -1;
+                content+=line(position,beamY+5,position+7*direction,beamY+5,3);
+              }
+              position+=note.subticks*spacing;
+            });
+          }
+        }
+        content+=figure(event,x,y,event.group || eventIndex<=beamUntil ? beamY : undefined);
+        if (event.tied) content+=tie(previousX,x,y);
+        previousX=x;
+        subtick+=event.subticks;
+        index++;
+      });
+      content+=line(start+space-6,28,start+space-6,68, row*2+b===bars.length-1?3:1);
+    });
+    return '<svg viewBox="0 0 '+width+' 94" role="img" aria-label="Compassos '+(row*2+1)+' e '+(row*2+2)+'. '+pair.flat().map(eventName).join(', ')+'">'+content+'</svg>';
+  }).join("");
+}
+function prepare() {
+  stop();
+  bars=makePhrase(+$("meter").value,+$("length").value,+$("level").value);
+  let subtick=0;
+  timeline=bars.flat().map(event=>{
+    const start=subtick/SUBDIVISIONS;
+    subtick+=event.subticks;
+    return {...event,start,end:subtick/SUBDIVISIONS};
+  });
+  $("phraseLabel").textContent="Frase "+(++phraseNumber)+" · "+bars.length+" compassos";
+  $("status").textContent="Pronto";
+  draw();
+}
+function metronomeClick(hz,at,seconds,volume) {
+  const oscillator=audio.createOscillator(), gain=audio.createGain();
+  oscillator.type="sine"; oscillator.frequency.value=hz;
+  gain.gain.setValueAtTime(.001,at);
+  gain.gain.exponentialRampToValueAtTime(volume,at+.012);
+  if (seconds) {
+    gain.gain.setValueAtTime(volume,Math.max(at+.014,at+seconds-.028));
+    gain.gain.exponentialRampToValueAtTime(.001,at+seconds);
+  }
+  oscillator.connect(gain);gain.connect(audio.destination);oscillator.start(at);
+  if (seconds) oscillator.stop(at+seconds+.01);
+  return {oscillator,gain};
+}
+// Harmonic spectrum of a bright brass tone. The filter opens on each attack.
+const brassHarmonics = [0,1,.76,.62,.48,.39,.28,.22,.17,.13,.09,.065,.045,.03];
+let trumpetWave;
+function trumpet(frequency,at,duration) {
+  trumpetWave ??= audio.createPeriodicWave(
+    new Float32Array(brassHarmonics.length), Float32Array.from(brassHarmonics)
+  );
+  const oscillator=audio.createOscillator();
+  const gain=audio.createGain();
+  const bell=audio.createBiquadFilter();
+  const vibrato=audio.createOscillator();
+  const depth=audio.createGain();
+
+  oscillator.setPeriodicWave(trumpetWave);
+  oscillator.frequency.setValueAtTime(frequency,at);
+  oscillator.detune.setValueAtTime(-11,at);
+  oscillator.detune.setTargetAtTime(0,at+.009,.019);
+
+  bell.type="lowpass";
+  bell.Q.value=.7;
+  bell.frequency.setValueAtTime(frequency*2.1,at);
+  bell.frequency.exponentialRampToValueAtTime(frequency*8,at+.029);
+  bell.frequency.setTargetAtTime(frequency*5.6,at+.045,.06);
+
+  gain.gain.setValueAtTime(.0001,at);
+  gain.gain.linearRampToValueAtTime(.20,at+.022);
+  gain.gain.setTargetAtTime(.15,at+.028,.04);
+
+  vibrato.frequency.value=5.1;
+  depth.gain.setValueAtTime(0,at);
+  depth.gain.setTargetAtTime(8,at+.24,.10);
+  vibrato.connect(depth).connect(oscillator.detune);
+  oscillator.connect(bell).connect(gain).connect(audio.destination);
+
+  oscillator.onended=()=>{
+    oscillator.disconnect();
+    bell.disconnect();
+    gain.disconnect();
+    vibrato.disconnect();
+    depth.disconnect();
+  };
+  oscillator.start(at);
+  vibrato.start(at);
+  const note={oscillator,gain,vibrato,at};
+  if (duration) releaseTrumpet(note,at+duration,.045);
+  return note;
+}
+function releaseTrumpet(note,at,tail) {
+  const level=note.gain.gain;
+  if (level.cancelAndHoldAtTime) {
+    level.cancelAndHoldAtTime(at);
+  } else {
+    const elapsed=at-note.at;
+    const amplitude=elapsed<.022 ? .0001+.1999*Math.max(0,elapsed)/.022
+      : .15+.05*Math.exp(-Math.max(0,elapsed-.028)/.04);
+    level.cancelScheduledValues(at);
+    level.setValueAtTime(amplitude,at);
+  }
+  level.setTargetAtTime(.0001,at,tail/5);
+  note.oscillator.stop(at+tail);
+  note.vibrato.stop(at+tail);
+}
+function silence(note) {
+  if (!note || !audio) return;
+  const now=audio.currentTime;
+  if (note.vibrato) {
+    try {
+      if (now<note.at) {
+        note.oscillator.stop(now);
+        note.vibrato.stop(now);
+      } else {
+        releaseTrumpet(note,now,.026);
+      }
+    } catch {}
+    return;
+  }
+  note.gain.gain.cancelScheduledValues(now);
+  note.gain.gain.setTargetAtTime(.001,now,.009);
+  try { note.oscillator.stop(now+.04); } catch {}
+}
+const hz = degree => 440*2**((pitches[degree]-69)/12);
+function resetBlow() {
+  pressed=false;
+  $("blow").classList.remove("down");
+  silence(playingNote);
+  playingNote=null;
+}
+function stop() {
+  generation++;
+  if (run) {
+    cancelAnimationFrame(run.frame);
+    run.scheduled.forEach(silence);
+    run=null;
+  }
+  resetBlow();
+  $("blow").disabled=true;
+  $("start").textContent="Iniciar";
+  $("listen").textContent="Ouvir a frase";
+}
+function tickAt(session) {
+  return (audio.currentTime-session.start)/session.unit;
+}
+function eventAt(tick) {
+  return timeline.findIndex(event=>tick>=event.start && tick<event.end);
+}
+function changeBlow(down) {
+  if (!run || run.mode!=="play" || down===pressed) return;
+  const tick=tickAt(run);
+  if (down && (tick<0 || eventAt(tick)<0)) return;
+  pressed=down;
+  run.inputs.push({tick,down});
+  $("blow").classList.toggle("down",down);
+  updateBlowTone(eventAt(tick));
+}
+function updateBlowTone(index) {
+  const event=timeline[index];
+  const pitch=pressed && event && !event.rest ? hz(event.degree) : null;
+  if (playingNote?.pitch===pitch) return;
+  silence(playingNote);
+  playingNote=pitch ? {...trumpet(pitch,audio.currentTime),pitch} : null;
+}
+function score(session,total) {
+  let expected=0,matched=0,held=false,input=0,event=0;
+  for (let tick=.0625;tick<total;tick+=.125) {
+    while (session.inputs[input]?.tick<=tick) held=session.inputs[input++].down;
+    while (tick>=timeline[event].end) event++;
+    const note=!timeline[event].rest;
+    const weight=note ? 1 : .7;
+    expected+=weight;
+    if (held===note) matched+=weight;
+  }
+  const attacks=timeline.filter(event=>!event.rest&&!event.tied);
+  const available=session.inputs.filter(input=>input.down).map(input=>input.tick);
+  const tolerance=Math.max(.5,Math.min(1.2,.11/session.unit));
+  let accurate=0;
+  for (const attack of attacks) {
+    const match=available.findIndex(tick=>Math.abs(tick-attack.start)<=Math.min(tolerance,(attack.end-attack.start)*.48));
+    if (match>=0) { available.splice(match,1); accurate++; }
+  }
+  return Math.round(100*(.65*matched/expected+.35*accurate/Math.max(1,attacks.length+available.length)));
+}
+function update(session) {
+  if (run!==session) return;
+  const tick=tickAt(session), total=timeline.at(-1).end;
+  if (tick>=total) {
+    const result=session.mode==="play" ? "Precisão rítmica · "+score(session,total)+"%" : "Escuta concluída";
+    stop(); draw(); $("status").textContent=result;
+    return;
+  }
+  const index=eventAt(tick);
+  if (index!==session.active) { session.active=index; draw(index); }
+  if (tick<0) {
+    const count=String(Math.ceil(-tick/4));
+    if ($("status").textContent!==count) $("status").textContent=count;
+  } else {
+    const position=session.mode==="play"?"Tocando":"Ouvindo";
+    if ($("status").textContent!==position) $("status").textContent=position;
+    if (session.mode==="play") {
+      $("blow").disabled=false;
+      updateBlowTone(index);
+    }
+  }
+  session.frame=requestAnimationFrame(()=>update(session));
+}
+async function launch(mode) {
+  if (run?.mode===mode) { stop();draw();$("status").textContent="Pronto";return; }
+  stop();
+  const attempt=generation;
+  try {
+    audio ??= new (window.AudioContext || window.webkitAudioContext)();
+    await audio.resume();
+  } catch {
+    if (attempt===generation) $("status").textContent="Áudio indisponível neste navegador";
+    return;
+  }
+  if (attempt!==generation) return;
+  const tempo=Math.max(40,Math.min(200,Math.round(+$("bpm").value||92)));
+  $("bpm").value=tempo;
+  const unit=15/tempo, meter=+$("meter").value, total=timeline.at(-1).end;
+  const start=audio.currentTime+.08+meter*4*unit;
+  const session={mode,unit,start,scheduled:[],inputs:[],active:null};
+  run=session;
+  $(mode==="play"?"start":"listen").textContent="Parar";
+  for (let beat=-meter;beat<total/4;beat++) {
+    if (beat<0 || $("click").checked) {
+      session.scheduled.push(metronomeClick(beat%meter===0?1100:780,start+beat*4*unit,.043,.07));
+    }
+  }
+  if (mode==="listen") {
+    timeline.forEach((event,index)=>{
+      if (event.rest || event.tied) return;
+      let end=event.end;
+      for (let i=index+1;timeline[i]?.tied;i++) end=timeline[i].end;
+      session.scheduled.push(trumpet(hz(event.degree),start+event.start*unit,(end-event.start)*unit*.94));
+    });
+  }
+  update(session);
+}
+const tie = (start,end,y) => '<path d="M'+start+' '+(y+8)+' Q'+((start+end)/2)+' '+(y+20)+' '+end+' '+(y+8)+' Q'+((start+end)/2)+' '+(y+24)+' '+start+' '+(y+8)+'" fill="currentColor"/>';
+const quizPool = [...new Set([
+  ...basicPatterns,...syncopatedPatterns,...sixteenthPatterns,...tiedPatterns,...endings,...fullBarPatterns,
+  ...Object.values(tupletPatterns).flat()
+].flat().filter(value=>Number.isFinite(+value)).map(Number))].map(value=>{
+  const duration=Math.abs(value), rest=value<0, name=figures[duration][0];
+  return {duration,rest,label:rest ? "Pausa de "+name.toLowerCase() : name};
+});
+quizPool.push(...Object.values(tuplets),{tied:true,label:"Ligadura de prolongamento"});
+let correct=0,answers=0,lastQuiz,deck=[];
+function quizNotation(target) {
+  if (target.count) {
+    const start=target.count===3 ? 28 : 43;
+    const end=138-start, beam=29;
+    return tupletMark(target,start,end,beam)+Array.from({length:target.count},(_,i)=>
+      figure(target,start+(end-start)*i/(target.count-1),58-i*5,beam)).join("");
+  }
+  if (target.tied) {
+    const note={duration:4};
+    return figure(note,43,48)+figure(note,95,48)+tie(43,95,48);
+  }
+  return figure(target,69,48);
+}
+function question() {
+  if (!deck.length) {
+    deck=shuffle(quizPool);
+    if (deck.at(-1)===lastQuiz) [deck[0],deck[deck.length-1]]=[deck.at(-1),deck[0]];
+  }
+  const target=deck.pop();
+  lastQuiz=target;
+  const similar=shuffle(quizPool.filter(item=>item!==target && item.rest===target.rest));
+  const others=shuffle(quizPool.filter(item=>item!==target && !similar.includes(item)));
+  const options=shuffle([target,...[...similar,...others].slice(0,3)]);
+  $("quizFigure").innerHTML='<svg viewBox="0 0 138 90" role="img" aria-label="Figura musical para identificar">'+[28,38,48,58,68].map(y=>line(5,y,133,y)).join("")+quizNotation(target)+'</svg>';
+  $("quizFeedback").textContent="";
+  $("nextQuiz").hidden=true;
+  $("options").replaceChildren();
+  for (const option of options) {
+    const button=document.createElement("button");
+    button.textContent=option.label;
+    button.addEventListener("click",()=>{
+      answers++; correct+=Number(option===target);
+      $("score").textContent=correct+" acertos de "+answers;
+      $("quizFeedback").textContent=option===target?"Acertou!":"Resposta correta · "+target.label;
+      [...$("options").children].forEach((item,index)=>{
+        item.disabled=true;
+        if (options[index]===target) item.classList.add("correct");
+      });
+      if (option!==target) button.classList.add("incorrect");
+      $("nextQuiz").hidden=false;
+      $("nextQuiz").focus();
+    });
+    $("options").append(button);
+  }
+}
+function switchMode(quiz) {
+  if ($("quiz").hidden===!quiz) return;
+  stop(); draw(); $("status").textContent="Pronto";
+  $("reading").hidden=quiz;
+  $("quiz").hidden=!quiz;
+  $("readTab").setAttribute("aria-pressed",String(!quiz));
+  $("quizTab").setAttribute("aria-pressed",String(quiz));
+}
+$("readTab").onclick=()=>switchMode(false);
+$("quizTab").onclick=()=>switchMode(true);
+$("start").onclick=()=>launch("play");
+$("listen").onclick=()=>launch("listen");
+$("next").onclick=prepare;
+$("nextQuiz").onclick=()=>{ question(); $("options").firstElementChild.focus(); };
+for (const id of ["meter","length","level"]) $(id).addEventListener("change",prepare);
+$("blow").onpointerdown=event=>{
+  if (event.button!==0 || !event.isPrimary) return;
+  event.preventDefault();
+  $("blow").setPointerCapture(event.pointerId);
+  changeBlow(true);
+};
+for (const name of ["pointerup","pointercancel","lostpointercapture"]) $("blow").addEventListener(name,event=>{if(event.isPrimary) changeBlow(false);});
+window.addEventListener("keydown",event=>{
+  if (event.code!=="Space" || run?.mode!=="play" || event.target.closest("input,select,textarea")) return;
+  event.preventDefault();
+  if (!event.repeat) changeBlow(true);
+});
+window.addEventListener("keyup",event=>{ if (event.code==="Space" && pressed) { event.preventDefault(); changeBlow(false); } });
+window.addEventListener("blur",()=>changeBlow(false));
+prepare();
+question();
+</script>
+</body></html>

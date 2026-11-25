@@ -225,6 +225,7 @@ function eventName(event) {
   return event.rest ? 'Pausa de '+label.toLowerCase() : label+' em '+names[event.degree]+(event.tied?' ligada à anterior':'');
 }
 let bars, timeline, phraseNumber=0, run=null, audio, playingNote, pressed=false, generation=0;
+let microphone, microphoneRequest;
 function draw(active=-1,blowing=false) {
   let index=0;
   $("sheet").innerHTML = Array.from({length:Math.ceil(bars.length/2)},(_,row)=>{
@@ -407,8 +408,7 @@ function stop() {
     cancelAnimationFrame(run.frame);
     run.scheduled.forEach(silence);
     if (run.mic) {
-      run.mic.source.disconnect();
-      run.mic.stream.getTracks().forEach(track=>track.stop());
+      run.mic.track.enabled=false;
     }
     run=null;
   }
@@ -465,6 +465,50 @@ function sampleMicrophone(session,tick) {
   let energy=0;
   for (const sample of samples) energy+=sample*sample;
   detectMicInput(session,tick,Math.sqrt(energy/samples.length));
+}
+function releaseMicrophone() {
+  microphoneRequest=null;
+  if (!microphone) return;
+  microphone.source.disconnect();
+  microphone.track.stop();
+  microphone=null;
+}
+function requestMicrophone() {
+  if (microphone?.track.readyState==="live") return Promise.resolve(microphone);
+  if (microphoneRequest) return microphoneRequest;
+  const request=navigator.mediaDevices.getUserMedia({audio:{
+    echoCancellation:false,noiseSuppression:false,autoGainControl:false
+  }}).then(stream=>{
+    if (microphoneRequest!==request) {
+      stream.getTracks().forEach(track=>track.stop());
+      return null;
+    }
+    try {
+      const track=stream.getAudioTracks()[0];
+      track.enabled=false;
+      const analyser=audio.createAnalyser();
+      analyser.fftSize=512;
+      const source=audio.createMediaStreamSource(stream);
+      source.connect(analyser);
+      const mic={track,source,analyser,samples:new Float32Array(analyser.fftSize)};
+      microphone=mic;
+      track.addEventListener("ended",()=>{
+        if (microphone!==mic) return;
+        releaseMicrophone();
+        if (run?.mic!==mic) return;
+        stop(); draw();
+        $("status").textContent="Microfone desconectado";
+      });
+      return mic;
+    } catch (error) {
+      stream.getTracks().forEach(track=>track.stop());
+      throw error;
+    }
+  }).finally(()=>{
+    if (microphoneRequest===request) microphoneRequest=null;
+  });
+  microphoneRequest=request;
+  return request;
 }
 function updateBlowTone(index) {
   const event=timeline[index];
@@ -584,23 +628,14 @@ async function launch(mode) {
   if (attempt!==generation) return;
   let mic;
   if (useMic) {
-    let stream;
     $("status").textContent="Aguardando microfone";
     try {
-      stream=await navigator.mediaDevices.getUserMedia({audio:{
-        echoCancellation:false,noiseSuppression:false,autoGainControl:false
-      }});
-      if (attempt!==generation) {
-        stream.getTracks().forEach(track=>track.stop());
-        return;
-      }
-      const analyser=audio.createAnalyser();
-      analyser.fftSize=512;
-      const source=audio.createMediaStreamSource(stream);
-      source.connect(analyser);
-      mic={stream,source,analyser,samples:new Float32Array(analyser.fftSize),noise:0,quietSince:null};
+      mic=await requestMicrophone();
+      if (attempt!==generation || !mic) return;
+      mic.noise=0;
+      mic.quietSince=null;
+      mic.track.enabled=true;
     } catch {
-      stream?.getTracks().forEach(track=>track.stop());
       if (attempt===generation) $("status").textContent="Microfone indisponível. Confira a permissão ou use o botão.";
       return;
     }
@@ -611,11 +646,6 @@ async function launch(mode) {
   const start=audio.currentTime+.08+meter*4*unit;
   const session={mode,unit,start,meter,mic,scheduled:[],inputs:[],active:null};
   run=session;
-  mic?.stream.getAudioTracks()[0]?.addEventListener("ended",()=>{
-    if (run!==session) return;
-    stop(); draw();
-    $("status").textContent="Microfone desconectado";
-  });
   $(mode==="play"?"start":"listen").textContent="Parar";
   for (let beat=-meter;beat<total/4;beat++) {
     if (!mic && (beat<0 || $("click").checked)) {
@@ -728,6 +758,7 @@ function question() {
 function switchMode(quiz) {
   if ($("quiz").hidden===!quiz) return;
   stop(); draw(); $("status").textContent="Pronto";
+  if (quiz) releaseMicrophone();
   $("reading").hidden=quiz;
   $("quiz").hidden=!quiz;
   $("readTab").setAttribute("aria-pressed",String(!quiz));
@@ -748,7 +779,7 @@ function updateInputMode() {
   $("click").disabled=microphone;
 }
 $("inputMode").addEventListener("change",()=>{
-  stop(); draw(); updateInputMode();
+  stop(); releaseMicrophone(); draw(); updateInputMode();
   $("status").textContent="Pronto";
 });
 $("figureOptions").addEventListener("change",()=>{
@@ -788,7 +819,10 @@ window.addEventListener("blur",()=>{
   spaceHeldForBlow=false;
   changeBlow(false);
 });
-window.addEventListener("pagehide",stop);
+window.addEventListener("pagehide",()=>{
+  stop();
+  releaseMicrophone();
+});
 drawFigureIcons();
 updateInputMode();
 prepare();

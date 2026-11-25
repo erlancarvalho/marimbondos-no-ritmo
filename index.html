@@ -29,14 +29,22 @@ button,select,input{font:inherit}button,select,input[type=number]{min-height:44p
 button{cursor:pointer;font-weight:750}nav button{background:transparent;border:0;padding-inline:4px;color:var(--muted)}nav button[aria-pressed=true]{background:#345347;color:var(--cream)}
 button:disabled{cursor:default}button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--yellow);outline-offset:3px}
 .primary{background:var(--yellow);color:#231c09;border-color:var(--yellow)}
-.settings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:end;color:var(--muted)}
-.settings label{display:grid;gap:5px;font-size:14px}.settings select,.settings input{width:100%;color:var(--cream);font-weight:700}
+.settings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:end;color:var(--muted)}
+.settings label{display:grid;min-width:0;gap:5px;font-size:14px}.settings select,.settings input{width:100%;min-width:0;color:var(--cream);font-weight:700}
+.tempo-field{position:relative;display:block}
+.tempo-field input[type=number]{display:block;padding-inline-end:52px;appearance:textfield}
+.tempo-field input::-webkit-inner-spin-button,.tempo-field input::-webkit-outer-spin-button{appearance:none;margin:0}
+.tempo-unit{position:absolute;inset-inline-end:12px;top:50%;transform:translateY(-50%);font-size:12px;pointer-events:none}
 .settings select{appearance:none;padding-right:27px;background:var(--panel) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7'%3E%3Cpath fill='%23c0cfc2' d='M0 0h12L6 7z'/%3E%3C/svg%3E") right 10px center no-repeat}
-.figure-options{grid-column:1/-1;min-width:0;margin:0;padding:8px 12px 10px;border:1px solid var(--border);border-radius:12px}
+.figure-options{grid-column:1/-1;min-width:0;margin:0;padding:8px 10px 10px;border:1px solid var(--border);border-radius:12px}
 .figure-options legend{padding:0 5px;font-size:14px}
-.figure-options div{display:flex;flex-wrap:wrap;gap:8px 16px}
-.settings .figure-options label{display:flex;align-items:center;gap:6px;color:var(--cream);cursor:pointer}
-.settings .figure-options input{width:auto;accent-color:var(--yellow)}
+.figure-options div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.settings .figure-options label{display:grid;grid-template-columns:auto 38px minmax(0,1fr);align-items:center;gap:7px;min-height:44px;padding:5px 7px;border-radius:8px;color:var(--cream);cursor:pointer;line-height:1.2}
+.settings .figure-options label:has(input:checked){background:#294438}
+.settings .figure-options input{width:auto;margin:0;accent-color:var(--yellow)}
+.figure-icon{display:block;width:38px;height:28px;color:var(--muted)}
+.figure-icon svg{display:block;width:100%;height:100%}
+.figure-options input:checked+.figure-icon{color:var(--yellow)}
 .settings .check{grid-column:1/-1;justify-self:end;display:flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:12px;padding:6px 10px;color:var(--cream);cursor:pointer}.settings .check input{width:auto;accent-color:var(--yellow)}
 .card{background:#fdf7e7;color:#202921;border:1px solid #f9e4b9;border-radius:21px;padding:clamp(10px,2.2vw,22px);margin:14px 0 16px;box-shadow:0 6px #10231c}
 .meta{display:flex;justify-content:space-between;align-items:center;gap:8px;font-weight:800}.meta span:last-child{background:#e6e7d5;border-radius:8px;padding:4px 8px}
@@ -46,7 +54,18 @@ button:disabled{cursor:default}button:focus-visible,select:focus-visible,input:f
 .rhythm-result{display:flex;flex-wrap:wrap;gap:6px 18px;margin:12px 0 0;font-size:14px}
 .hint{text-align:center;color:var(--muted);margin:14px 0}.options button.correct{background:#336d39}.options button.incorrect{background:#9c352c}.options button:disabled:not(.correct):not(.incorrect){opacity:.55}
 #quizFigure svg{display:block;width:min(100%,270px);height:auto;margin:6px auto}#quizFeedback{min-height:1.5em}[hidden]{display:none!important}
-@media(max-width:650px){.settings{grid-template-columns:repeat(2,minmax(0,1fr))}.actions button{padding-inline:4px;font-size:14px}}
+@media(max-width:650px){
+  .settings,.figure-options div{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .settings{gap:10px}
+  .settings .check{grid-area:2/2;justify-self:stretch;min-height:44px}
+  .actions button{padding-inline:4px;font-size:14px}
+}
+@media(max-width:470px){
+  .figure-options{padding-inline:6px}
+  .settings .figure-options label{grid-template-columns:auto 32px minmax(0,1fr);gap:5px;padding-inline:5px}
+  .figure-icon{width:32px}
+  .figure-options .figure-combination{grid-column:1/-1}
+}
 </style>
 </head>
 <body><main>
@@ -56,7 +75,7 @@ button:disabled{cursor:default}button:focus-visible,select:focus-visible,input:f
 <div class="settings">
 <label>Compasso<select id="meter"><option value="2">2/4</option><option value="4">4/4</option></select></label>
 <label>Compassos por treino<select id="length"><option value="2">2 compassos</option><option value="4" selected>4 compassos</option></select></label>
-<label>Andamento <span><input id="bpm" type="number" min="40" max="200" value="92" aria-label="Andamento BPM"> BPM</span></label>
+<label>Andamento <span class="tempo-field"><input id="bpm" type="number" min="40" max="200" value="92" aria-label="Andamento BPM"><span class="tempo-unit" aria-hidden="true">BPM</span></span></label>
 <fieldset id="figureOptions" class="figure-options">
 <legend>Figuras</legend>
 <div>
@@ -64,8 +83,8 @@ button:disabled{cursor:default}button:focus-visible,select:focus-visible,input:f
 <label><input type="checkbox" value="syncopated" checked>Síncopes</label>
 <label><input type="checkbox" value="sixteenth">Semicolcheias</label>
 <label><input type="checkbox" value="tied">Ligaduras</label>
-<label><input type="checkbox" value="shortLong">Semicolcheia + colcheia</label>
-<label><input type="checkbox" value="dotted">Colcheia pontuada + semicolcheia + colcheia</label>
+<label class="figure-combination"><input type="checkbox" value="shortLong">Semicolcheia + colcheia</label>
+<label class="figure-combination"><input type="checkbox" value="dotted">Colcheia pontuada + semicolcheia + colcheia</label>
 </div>
 </fieldset>
 <label class="check"><input id="click" type="checkbox" checked>Metrônomo ligado</label>
@@ -543,6 +562,40 @@ async function launch(mode) {
   update(session);
 }
 const tie = (start,end,y) => '<path d="M'+start+' '+(y+8)+' Q'+((start+end)/2)+' '+(y+20)+' '+end+' '+(y+8)+' Q'+((start+end)/2)+' '+(y+24)+' '+start+' '+(y+8)+'" fill="currentColor"/>';
+function drawFigureIcons() {
+  const previews = {
+    basic:{notes:[4]},
+    syncopated:{notes:[2,4,2]},
+    sixteenth:{notes:[1,1],beam:true},
+    tied:{notes:[4,4],tie:true},
+    shortLong:{notes:[1,2],beam:true},
+    dotted:{notes:[3,1,2],beam:true}
+  };
+  for (const input of $("figureOptions").querySelectorAll("input")) {
+    const preview=previews[input.value];
+    const spacing=preview.notes.length===3 ? 22 : 25;
+    const start=38-(preview.notes.length-1)*spacing/2;
+    const end=76-start;
+    const y=36, beamY=preview.beam ? 7 : undefined;
+    let notation=preview.notes.map((duration,index)=>
+      figure({duration},start+spacing*index,y,beamY)).join("");
+    if (preview.beam) {
+      const stemStart=start+noteStemOffset;
+      const stemEnd=end+noteStemOffset;
+      notation+=line(stemStart,beamY,stemEnd,beamY,3);
+      const shortStem=stemStart+preview.notes.indexOf(1)*spacing;
+      const secondBeamStart=preview.notes[0]===3 ? shortStem-9 : stemStart;
+      const secondBeamEnd=input.value==="sixteenth" ? stemEnd : secondBeamStart+9;
+      notation+=line(secondBeamStart,beamY+5,secondBeamEnd,beamY+5,3);
+    }
+    if (preview.tie) notation+=tie(start,end,y);
+    const icon=document.createElement("span");
+    icon.className="figure-icon";
+    icon.setAttribute("aria-hidden","true");
+    icon.innerHTML='<svg viewBox="0 0 76 56" focusable="false">'+notation+'</svg>';
+    input.after(icon);
+  }
+}
 const quizPool = [...new Set([
   ...basicPatterns,...syncopatedPatterns,...sixteenthPatterns,...tiedPatterns,...endings,...fullBarPatterns
 ].flat().filter(value=>Number.isFinite(+value)).map(Number))].map(value=>{
@@ -642,6 +695,7 @@ window.addEventListener("blur",()=>{
   spaceHeldForBlow=false;
   changeBlow(false);
 });
+drawFigureIcons();
 prepare();
 question();
 </script>

@@ -29,7 +29,7 @@ button,select,input{font:inherit}button,select,input[type=number]{min-height:44p
 button{cursor:pointer;font-weight:750}nav button{background:transparent;border:0;padding-inline:4px;color:var(--muted)}nav button[aria-pressed=true]{background:#345347;color:var(--cream)}
 button:disabled{cursor:default}button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--yellow);outline-offset:3px}
 .primary{background:var(--yellow);color:#231c09;border-color:var(--yellow)}
-.settings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:end;color:var(--muted)}
+.settings{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:end;color:var(--muted)}
 .settings label{display:grid;min-width:0;gap:5px;font-size:14px}.settings select,.settings input{width:100%;min-width:0;color:var(--cream);font-weight:700}
 .tempo-field{position:relative;display:block}
 .tempo-field input[type=number]{display:block;padding-inline-end:52px;appearance:textfield}
@@ -52,12 +52,12 @@ button:disabled{cursor:default}button:focus-visible,select:focus-visible,input:f
 #blow{display:grid;grid-template-columns:auto auto;gap:10px;align-items:center;justify-content:center;text-align:left;width:100%;margin-top:10px;min-height:104px;font-size:clamp(23px,5vw,38px);background:#294438;color:var(--cream);touch-action:none;user-select:none}
 #blow small{display:block;font-size:clamp(12px,2.6vw,20px);font-weight:550}#blow.down{background:#d89b19;color:#231c09}#blow svg{width:36px}
 .rhythm-result{display:flex;flex-wrap:wrap;gap:6px 18px;margin:12px 0 0;font-size:14px}
+#micHint{margin:12px 0;color:var(--muted);text-align:center}
 .hint{text-align:center;color:var(--muted);margin:14px 0}.options button.correct{background:#336d39}.options button.incorrect{background:#9c352c}.options button:disabled:not(.correct):not(.incorrect){opacity:.55}
 #quizFigure svg{display:block;width:min(100%,270px);height:auto;margin:6px auto}#quizFeedback{min-height:1.5em}[hidden]{display:none!important}
 @media(max-width:650px){
   .settings,.figure-options div{grid-template-columns:repeat(2,minmax(0,1fr))}
   .settings{gap:10px}
-  .settings .check{grid-area:2/2;justify-self:stretch;min-height:44px}
   .actions button{padding-inline:4px;font-size:14px}
 }
 @media(max-width:470px){
@@ -76,6 +76,7 @@ button:disabled{cursor:default}button:focus-visible,select:focus-visible,input:f
 <label>Compasso<select id="meter"><option value="2">2/4</option><option value="4">4/4</option></select></label>
 <label>Compassos por treino<select id="length"><option value="2">2 compassos</option><option value="4" selected>4 compassos</option></select></label>
 <label>Andamento <span class="tempo-field"><input id="bpm" type="number" min="40" max="200" value="92" aria-label="Andamento BPM"><span class="tempo-unit" aria-hidden="true">BPM</span></span></label>
+<label>Entrada<select id="inputMode"><option value="button">Botão ou espaço</option><option value="microphone">Microfone</option></select></label>
 <fieldset id="figureOptions" class="figure-options">
 <legend>Figuras</legend>
 <div>
@@ -91,7 +92,8 @@ button:disabled{cursor:default}button:focus-visible,select:focus-visible,input:f
 <div class="card"><div class="meta"><span id="phraseLabel"></span><span id="status" role="status">Pronto</span></div><div id="sheet" class="sheet"></div><p id="rhythmResult" class="rhythm-result" role="status" hidden></p></div>
 <div class="actions"><button id="start" class="primary">Iniciar</button><button id="listen">Ouvir a frase</button><button id="next">Nova frase</button></div>
 <button id="blow" class="primary" disabled><svg viewBox="0 0 40 48" aria-hidden="true"><path d="M6 15v18m14-28v38m14-28v18" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/></svg><span>Assoprar<small>Segure o botão ou a barra de espaço</small></span></button>
-<p class="hint">Segure pelas ligaduras, solte nas pausas e aperte de novo a cada ataque.</p>
+<p id="buttonHint" class="hint">Segure pelas ligaduras, solte nas pausas e aperte de novo a cada ataque.</p>
+<p id="micHint" hidden>Fique em silêncio na contagem e faça um “tá” a cada ataque. Sustente o som nas notas longas. No treino com microfone, o pulso é visual.</p>
 </section>
 <section id="quiz" aria-label="Quiz de figuras" hidden>
 <div class="card"><div class="meta"><span>Que figura é esta?</span><span id="score">0 acertos de 0</span></div><div id="quizFigure"></div></div>
@@ -403,6 +405,10 @@ function stop() {
   if (run) {
     cancelAnimationFrame(run.frame);
     run.scheduled.forEach(silence);
+    if (run.mic) {
+      run.mic.source.disconnect();
+      run.mic.stream.getTracks().forEach(track=>track.stop());
+    }
     run=null;
   }
   resetBlow();
@@ -418,16 +424,46 @@ function eventAt(tick) {
   return timeline.findIndex(event=>tick>=event.start && tick<event.end);
 }
 function changeBlow(down) {
-  if (!run || run.mode!=="play" || down===pressed) return;
-  const tick=tickAt(run);
-  if (down && (tick*run.unit<-.12 || tick>=timeline.at(-1).end)) return;
+  if (!run || run.mode!=="play" || run.mic) return;
+  recordInput(run,down,tickAt(run));
+  updateBlowTone(eventAt(tickAt(run)));
+}
+function recordInput(session,down,tick) {
+  if (down===pressed) return;
+  if (down && (tick*session.unit<-.12 || tick>=timeline.at(-1).end)) return;
   pressed=down;
-  run.inputs.push({tick,down});
+  session.inputs.push({tick,down});
   $("blow").classList.toggle("down",down);
-  const index=eventAt(tick);
-  run.active=index;
-  draw(index,pressed);
-  updateBlowTone(index);
+  session.active=eventAt(tickAt(session));
+  draw(session.active,pressed);
+}
+function detectMicInput(session,tick,level) {
+  const mic=session.mic;
+  const seconds=tick*session.unit;
+  if (seconds<-.12) {
+    mic.noise += (level-mic.noise)*.08;
+    return;
+  }
+  const attack=Math.max(.012,mic.noise*3);
+  const release=Math.max(.008,mic.noise*1.8,attack*.65);
+  if (!pressed && level>=attack) {
+    mic.quietSince=null;
+    recordInput(session,true,tick);
+  } else if (pressed && level<release) {
+    mic.quietSince ??= tick;
+    if ((tick-mic.quietSince)*session.unit>=.025) {
+      recordInput(session,false,mic.quietSince);
+    }
+  } else {
+    mic.quietSince=null;
+  }
+}
+function sampleMicrophone(session,tick) {
+  const {analyser,samples}=session.mic;
+  analyser.getFloatTimeDomainData(samples);
+  let energy=0;
+  for (const sample of samples) energy+=sample*sample;
+  detectMicInput(session,tick,Math.sqrt(energy/samples.length));
 }
 function updateBlowTone(index) {
   const event=timeline[index];
@@ -500,6 +536,7 @@ function rhythmTendencies(session,total) {
 function update(session) {
   if (run!==session) return;
   const tick=tickAt(session), total=timeline.at(-1).end;
+  if (session.mic) sampleMicrophone(session,tick);
   if (tick>=total) {
     const result=session.mode==="play" ? "Precisão rítmica · "+score(session,total)+"%" : "Escuta concluída";
     const tendencies=session.mode==="play" ? rhythmTendencies(session,total) : null;
@@ -517,14 +554,15 @@ function update(session) {
   }
   const index=eventAt(tick);
   if (index!==session.active) { session.active=index; draw(index,pressed); }
-  if (session.mode==="play") $("blow").disabled=tick*session.unit<-.12;
+  if (session.mode==="play" && !session.mic) $("blow").disabled=tick*session.unit<-.12;
   if (tick<0) {
     const count=String(Math.ceil(-tick/4));
     if ($("status").textContent!==count) $("status").textContent=count;
   } else {
-    const position=session.mode==="play"?"Tocando":"Ouvindo";
+    const position=session.mic ? "Tempo "+(Math.floor(tick/4)%session.meter+1)
+      : session.mode==="play" ? "Tocando" : "Ouvindo";
     if ($("status").textContent!==position) $("status").textContent=position;
-    if (session.mode==="play") {
+    if (session.mode==="play" && !session.mic) {
       updateBlowTone(index);
     }
   }
@@ -534,6 +572,7 @@ async function launch(mode) {
   if (run?.mode===mode) { stop();draw();$("status").textContent="Pronto";return; }
   stop();
   const attempt=generation;
+  const useMic=mode==="play" && $("inputMode").value==="microphone";
   try {
     audio ??= new (window.AudioContext || window.webkitAudioContext)();
     await audio.resume();
@@ -542,15 +581,43 @@ async function launch(mode) {
     return;
   }
   if (attempt!==generation) return;
+  let mic;
+  if (useMic) {
+    let stream;
+    $("status").textContent="Aguardando microfone";
+    try {
+      stream=await navigator.mediaDevices.getUserMedia({audio:{
+        echoCancellation:false,noiseSuppression:false,autoGainControl:false
+      }});
+      if (attempt!==generation) {
+        stream.getTracks().forEach(track=>track.stop());
+        return;
+      }
+      const analyser=audio.createAnalyser();
+      analyser.fftSize=512;
+      const source=audio.createMediaStreamSource(stream);
+      source.connect(analyser);
+      mic={stream,source,analyser,samples:new Float32Array(analyser.fftSize),noise:0,quietSince:null};
+    } catch {
+      stream?.getTracks().forEach(track=>track.stop());
+      if (attempt===generation) $("status").textContent="Microfone indisponível. Confira a permissão ou use o botão.";
+      return;
+    }
+  }
   const tempo=Math.max(40,Math.min(200,Math.round(+$("bpm").value||92)));
   $("bpm").value=tempo;
   const unit=15/tempo, meter=+$("meter").value, total=timeline.at(-1).end;
   const start=audio.currentTime+.08+meter*4*unit;
-  const session={mode,unit,start,scheduled:[],inputs:[],active:null};
+  const session={mode,unit,start,meter,mic,scheduled:[],inputs:[],active:null};
   run=session;
+  mic?.stream.getAudioTracks()[0]?.addEventListener("ended",()=>{
+    if (run!==session) return;
+    stop(); draw();
+    $("status").textContent="Microfone desconectado";
+  });
   $(mode==="play"?"start":"listen").textContent="Parar";
   for (let beat=-meter;beat<total/4;beat++) {
-    if (beat<0 || $("click").checked) {
+    if (!mic && (beat<0 || $("click").checked)) {
       session.scheduled.push(metronomeClick(beat%meter===0?1100:780,start+beat*4*unit,.043,.07));
     }
   }
@@ -657,6 +724,17 @@ $("listen").onclick=()=>launch("listen");
 $("next").onclick=prepare;
 $("nextQuiz").onclick=()=>{ question(); $("options").firstElementChild.focus(); };
 for (const id of ["meter","length"]) $(id).addEventListener("change",prepare);
+function updateInputMode() {
+  const microphone=$("inputMode").value==="microphone";
+  $("blow").hidden=microphone;
+  $("buttonHint").hidden=microphone;
+  $("micHint").hidden=!microphone;
+  $("click").disabled=microphone;
+}
+$("inputMode").addEventListener("change",()=>{
+  stop(); draw(); updateInputMode();
+  $("status").textContent="Pronto";
+});
 $("figureOptions").addEventListener("change",()=>{
   if (!$("figureOptions").querySelector("input:checked")) {
     $("figureOptions").querySelector('input[value="basic"]').checked=true;
@@ -677,7 +755,7 @@ window.addEventListener("keydown",event=>{
     event.preventDefault();
     return;
   }
-  if (run?.mode!=="play" || event.target.closest("input,select,textarea")) return;
+  if (run?.mode!=="play" || run.mic || event.target.closest("input,select,textarea")) return;
   event.preventDefault();
   if (!event.repeat) {
     spaceHeldForBlow=true;
@@ -694,7 +772,9 @@ window.addEventListener("blur",()=>{
   spaceHeldForBlow=false;
   changeBlow(false);
 });
+window.addEventListener("pagehide",stop);
 drawFigureIcons();
+updateInputMode();
 prepare();
 question();
 </script>

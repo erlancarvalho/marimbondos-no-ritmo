@@ -72,15 +72,15 @@ const figures = {
   6:["Semínima pontuada","𝅘𝅥","𝄽"],8:["Mínima","𝅗𝅥","𝄼"],
   12:["Mínima pontuada","𝅗𝅥","𝄼"],16:["Semibreve","𝅝","𝄻"]
 };
-// Patterns are two beats long. Negative values are rests, 0 is a
-// three-colcheia tuplet, and "+2" or "+4" continues the preceding pitch.
+// Patterns are two beats long. Negative values are rests, named tuplets
+// expand into a group, and "+2" or "+4" continues the preceding pitch.
 const basicPatterns = [[4,4],[2,2,4],[4,-2,2],[2,-2,2,2],[8],[-4,2,2],[2,2,2,2]];
 const syncopatedPatterns = [[2,4,2],[6,-2],[2,2,-2,2],[2,4,-2]];
 const tiedPatterns = [[2,2,"+2",2],[-2,2,"+4"],[2,2,"+2",-2],[4,"+2",2],[2,2,"+4"]];
 const sixteenthPatterns = [[3,1,4],[1,1,2,4],[2,1,1,4],[4,1,1,1,1],[1,1,-2,2,2],[-1,1,2,4]];
 const tuplets = {
-  diminuida:{count:3,normal:2,duration:2,label:"Tercina de colcheias (diminutiva)"},
-  aumentada:{count:2,normal:3,duration:2,label:"Duína de colcheias (aumentativa)"}
+  diminuida:{count:3,normal:2,duration:2,label:"Tercina de colcheias (diminutiva, 3:2)"},
+  aumentada:{count:2,normal:3,duration:2,label:"Duína de colcheias (aumentativa, 2:3)"}
 };
 const tupletPatterns = {
   diminuida:[["diminuida",4],[4,"diminuida"],[-4,"diminuida"],["diminuida",2,2]],
@@ -201,10 +201,11 @@ function figure(event,x,y,beamY) {
 function tupletMark(group,start,end,beamY) {
   const center=(start+end)/2+noteStemOffset;
   const top=beamY-7;
+  const ratio=[0xE880+group.count,0xE88A,0xE880+group.normal];
   return line(start+noteStemOffset,beamY,end+noteStemOffset,beamY,3)
-    +line(start,top,start,top+4)+line(start,top,center-8,top)
-    +line(center+8,top,end+9,top)+line(end+9,top,end+9,top+4)
-    +glyph(0xE880+group.count,center,top);
+    +line(start,top,start,top+4)+line(start,top,center-14,top)
+    +line(center+14,top,end+9,top)+line(end+9,top,end+9,top+4)
+    +ratio.map((code,index)=>glyph(code,center+(index-1)*8,top)).join("");
 }
 function eventName(event) {
   const label = event.group ? event.group.label : figures[event.duration][0];
@@ -233,7 +234,7 @@ function draw(active=-1) {
         if (index===active) content+='<rect x="'+(x-10)+'" y="13" width="22" height="69" rx="6" fill="#ffd34c"/>';
         if (event.group && event.position===0) {
           const topDegree=Math.max(...events.slice(eventIndex,eventIndex+event.group.count).map(note=>note.degree));
-          beamY=58-topDegree*5-21;
+          beamY=Math.max(18,58-topDegree*5-21);
           const end=x+event.subticks*(event.group.count-1)*spacing;
           content+=tupletMark(event.group,x,end,beamY);
         }

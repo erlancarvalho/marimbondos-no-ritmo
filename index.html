@@ -29,9 +29,14 @@ button,select,input{font:inherit}button,select,input[type=number]{min-height:44p
 button{cursor:pointer;font-weight:750}nav button{background:transparent;border:0;padding-inline:4px;color:var(--muted)}nav button[aria-pressed=true]{background:#345347;color:var(--cream)}
 button:disabled{cursor:default}button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--yellow);outline-offset:3px}
 .primary{background:var(--yellow);color:#231c09;border-color:var(--yellow)}
-.settings{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;align-items:end;color:var(--muted)}
+.settings{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:end;color:var(--muted)}
 .settings label{display:grid;gap:5px;font-size:14px}.settings select,.settings input{width:100%;color:var(--cream);font-weight:700}
 .settings select{appearance:none;padding-right:27px;background:var(--panel) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7'%3E%3Cpath fill='%23c0cfc2' d='M0 0h12L6 7z'/%3E%3C/svg%3E") right 10px center no-repeat}
+.figure-options{grid-column:1/-1;min-width:0;margin:0;padding:8px 12px 10px;border:1px solid var(--border);border-radius:12px}
+.figure-options legend{padding:0 5px;font-size:14px}
+.figure-options div{display:flex;flex-wrap:wrap;gap:8px 16px}
+.settings .figure-options label{display:flex;align-items:center;gap:6px;color:var(--cream);cursor:pointer}
+.settings .figure-options input{width:auto;accent-color:var(--yellow)}
 .settings .check{grid-column:1/-1;justify-self:end;display:flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:12px;padding:6px 10px;color:var(--cream);cursor:pointer}.settings .check input{width:auto;accent-color:var(--yellow)}
 .card{background:#fdf7e7;color:#202921;border:1px solid #f9e4b9;border-radius:21px;padding:clamp(10px,2.2vw,22px);margin:14px 0 16px;box-shadow:0 6px #10231c}
 .meta{display:flex;justify-content:space-between;align-items:center;gap:8px;font-weight:800}.meta span:last-child{background:#e6e7d5;border-radius:8px;padding:4px 8px}
@@ -51,7 +56,18 @@ button:disabled{cursor:default}button:focus-visible,select:focus-visible,input:f
 <label>Compasso<select id="meter"><option value="2">2/4</option><option value="4">4/4</option></select></label>
 <label>Compassos por treino<select id="length"><option value="2">2 compassos</option><option value="4" selected>4 compassos</option></select></label>
 <label>Andamento <span><input id="bpm" type="number" min="40" max="200" value="92" aria-label="Andamento BPM"> BPM</span></label>
-<label>Figuras<select id="level"><option value="0">Básicas</option><option value="1" selected>Com síncopes</option><option value="2">Com semicolcheias</option><option value="3">Com quiálteras</option><option value="4">Com ligaduras</option><option value="5">Semicolcheia + colcheia</option><option value="6">Colcheia pontuada + semicolcheia</option></select></label>
+<fieldset id="figureOptions" class="figure-options">
+<legend>Figuras</legend>
+<div>
+<label><input type="checkbox" value="basic" checked>Básicas</label>
+<label><input type="checkbox" value="syncopated" checked>Síncopes</label>
+<label><input type="checkbox" value="sixteenth">Semicolcheias</label>
+<label><input type="checkbox" value="tuplet">Quiálteras</label>
+<label><input type="checkbox" value="tied">Ligaduras</label>
+<label><input type="checkbox" value="shortLong">Semicolcheia + colcheia</label>
+<label><input type="checkbox" value="dotted">Colcheia pontuada + semicolcheia + colcheia</label>
+</div>
+</fieldset>
 <label class="check"><input id="click" type="checkbox" checked>Metrônomo ligado</label>
 </div>
 <div class="card"><div class="meta"><span id="phraseLabel"></span><span id="status" role="status">Pronto</span></div><div id="sheet" class="sheet"></div></div>
@@ -78,10 +94,6 @@ const basicPatterns = [[4,4],[2,2,4],[4,-2,2],[2,-2,2,2],[8],[-4,2,2],[2,2,2,2]]
 const syncopatedPatterns = [[2,4,2],[6,-2],[2,2,-2,2],[2,4,-2]];
 const tiedPatterns = [[2,2,"+2",2],[-2,2,"+4"],[2,2,"+2",-2],[4,"+2",2],[2,2,"+4"]];
 const sixteenthPatterns = [[3,1,4],[1,1,2,4],[2,1,1,4],[4,1,1,1,1],[1,1,-2,2,2],[-1,1,2,4]];
-const featuredPatterns = {
-  5:{pattern:[1,2,-1,4], beamedNotes:2},
-  6:{pattern:[3,1,2,2], beamedNotes:3}
-};
 const tuplets = {
   diminuida:{count:3,normal:2,duration:2,label:"Tercina de colcheias (diminutiva, 3:2)"},
   aumentada:{count:2,normal:3,duration:2,label:"Duína de colcheias (aumentativa, 2:3)"}
@@ -105,44 +117,37 @@ function shuffle(items) {
   }
   return copy;
 }
-function makePhrase(meter,length,level) {
+const figurePatterns = {
+  basic:basicPatterns.map(pattern=>({pattern})),
+  syncopated:syncopatedPatterns.map(pattern=>({pattern})),
+  sixteenth:sixteenthPatterns.map(pattern=>({pattern})),
+  tuplet:Object.values(tupletPatterns).flat().map(pattern=>({pattern})),
+  tied:tiedPatterns.map(pattern=>({pattern})),
+  shortLong:[{pattern:[1,2,-1,4],beamedNotes:2}],
+  dotted:[{pattern:[3,1,2,2],beamedNotes:3}]
+};
+function makePhrase(meter,length,selected) {
   const cellsPerBar = meter/2;
   const cellCount = length*cellsPerBar;
-  const patterns = [...basicPatterns];
-  if (level >= 1) patterns.push(...syncopatedPatterns);
-  if (level >= 2) patterns.push(...sixteenthPatterns);
-
-  const motif = pick(basicPatterns.filter(pattern=>pattern.length > 1));
+  const categories = selected.length ? selected : ["basic"];
+  const patterns = categories.flatMap(category=>figurePatterns[category]);
+  const required = shuffle(categories.map(category=>pick(figurePatterns[category])));
+  const slots = shuffle(Array.from({length:cellCount},(_,index)=>index));
+  const assigned = new Map(required.slice(0,cellCount).map((entry,index)=>[slots[index],entry]));
+  const motif = pick(patterns);
   const contour = pick(contours);
-  const response = shuffle(patterns.filter(pattern=>pattern!==motif));
   const repeat = Math.floor(length/2)*cellsPerBar;
-  const variations = Array.from({length:cellCount-1},(_,i)=>i).filter(i=>i!==0 && i!==repeat);
-  if (!variations.length) variations.push(0);
-  const featured = featuredPatterns[level];
-  const tupletKinds = level===3 ? shuffle(Object.keys(tuplets))
-    : !featured && level>=1 && Math.random()<.48 ? [pick(Object.keys(tuplets))] : [];
-  const tupletSlots = shuffle([...variations,cellCount-1]);
-  const featuredCell = featured ? tupletSlots[0] : -1;
-  const groups = new Map(tupletKinds.map((kind,i)=>[tupletSlots[i],kind]));
-  const tieSlots = [...variations,cellCount-1].filter(cell=>cell!==featuredCell && !groups.has(cell));
-  const tiedCell = tieSlots.length && (level===4 || (level>=1 && Math.random()<.55))
-    ? pick(tieSlots) : -1;
-  let degree = 0;
   const bars = Array.from({length},()=>[]);
+  let degree = 0;
   for (let cell=0;cell<cellCount;cell++) {
     const closing = cell===cellCount-1;
     const repeatsMotif = cell===0 || cell===repeat;
     const shape = pick(contours);
-    const canUseFullBar = meter===4 && level>=1 && cell%2===0 &&
-      !groups.has(cell) && !groups.has(cell+1) && tiedCell!==cell && tiedCell!==cell+1 &&
-      featuredCell!==cell && featuredCell!==cell+1;
-    const fullBar = canUseFullBar && Math.random()<.2;
-    const pattern = cell===featuredCell ? featured.pattern
-      : fullBar ? pick(fullBarPatterns)
-      : cell===tiedCell ? pick(closing ? [[2,2,"+4"],[-2,2,"+4"]] : tiedPatterns)
-      : groups.has(cell) ? pick(tupletPatterns[groups.get(cell)])
-      : closing ? pick(endings)
-      : repeatsMotif ? motif : (response.shift() ?? pick(patterns));
+    const fullBar = meter===4 && cell%2===0 && categories.includes("basic") &&
+      !assigned.has(cell) && !assigned.has(cell+1) && Math.random()<.2;
+    const {pattern,beamedNotes} = assigned.get(cell) ?? (fullBar ? {pattern:pick(fullBarPatterns)}
+      : closing && categories.includes("basic") ? {pattern:pick(endings)}
+      : repeatsMotif ? motif : pick(patterns));
     const tokens = pattern.flatMap(value=>{
       const group=tuplets[value];
       if (!group) return [{value}];
@@ -164,7 +169,7 @@ function makePhrase(meter,length,level) {
       }
       bars[Math.floor(cell/cellsPerBar)].push({
         duration, rest, tied, group, position, degree,
-        beamedNotes:cell===featuredCell && tokenIndex===0 ? featured.beamedNotes : undefined,
+        beamedNotes:tokenIndex===0 ? beamedNotes : undefined,
         subticks:duration*SUBDIVISIONS*(group ? group.normal/group.count : 1)
       });
     }
@@ -285,12 +290,13 @@ function draw(active=-1) {
       content+=line(barlineX,28,barlineX,68,finalBar?3:1);
       if (finalBar) content+=line(barlineX-5,28,barlineX-5,68);
     });
-    return '<svg viewBox="0 0 '+width+' 94" role="img" aria-label="Compassos '+(row*2+1)+' e '+(row*2+2)+'. '+pair.flat().map(eventName).join(', ')+'">'+content+'</svg>';
+    return '<svg viewBox="-12 -18 '+(width+24)+' 122" role="img" aria-label="Compassos '+(row*2+1)+' e '+(row*2+2)+'. '+pair.flat().map(eventName).join(', ')+'">'+content+'</svg>';
   }).join("");
 }
 function prepare() {
   stop();
-  bars=makePhrase(+$("meter").value,+$("length").value,+$("level").value);
+  const selected=Array.from($("figureOptions").querySelectorAll("input:checked"),input=>input.value);
+  bars=makePhrase(+$("meter").value,+$("length").value,selected);
   let subtick=0;
   timeline=bars.flat().map(event=>{
     const start=subtick/SUBDIVISIONS;
@@ -545,7 +551,7 @@ function question() {
   const similar=shuffle(quizPool.filter(item=>item!==target && item.rest===target.rest));
   const others=shuffle(quizPool.filter(item=>item!==target && !similar.includes(item)));
   const options=shuffle([target,...[...similar,...others].slice(0,3)]);
-  $("quizFigure").innerHTML='<svg viewBox="0 0 138 90" role="img" aria-label="Figura musical para identificar">'+[28,38,48,58,68].map(y=>line(5,y,133,y)).join("")+quizNotation(target)+'</svg>';
+  $("quizFigure").innerHTML='<svg viewBox="-8 -12 154 112" role="img" aria-label="Figura musical para identificar">'+[28,38,48,58,68].map(y=>line(5,y,133,y)).join("")+quizNotation(target)+'</svg>';
   $("quizFeedback").textContent="";
   $("nextQuiz").hidden=true;
   $("options").replaceChildren();
@@ -581,7 +587,13 @@ $("start").onclick=()=>launch("play");
 $("listen").onclick=()=>launch("listen");
 $("next").onclick=prepare;
 $("nextQuiz").onclick=()=>{ question(); $("options").firstElementChild.focus(); };
-for (const id of ["meter","length","level"]) $(id).addEventListener("change",prepare);
+for (const id of ["meter","length"]) $(id).addEventListener("change",prepare);
+$("figureOptions").addEventListener("change",()=>{
+  if (!$("figureOptions").querySelector("input:checked")) {
+    $("figureOptions").querySelector('input[value="basic"]').checked=true;
+  }
+  prepare();
+});
 $("blow").onpointerdown=event=>{
   if (event.button!==0 || !event.isPrimary) return;
   event.preventDefault();

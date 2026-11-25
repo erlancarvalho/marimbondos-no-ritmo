@@ -156,16 +156,21 @@ function makePhrase(meter,length,level) {
   return bars;
 }
 const line = (x1,y1,x2,y2,width=1) => '<path d="M'+x1+' '+y1+'L'+x2+' '+y2+'" stroke="currentColor" stroke-width="'+width+'" fill="none"/>';
+const trebleClef = '<path d="M 15 74 C 10 63 15 54 24 44 C 33 34 36 23 32 21 C 27 20 25 29 26 40 C 27 53 31 63 32 76 C 34 89 24 94 19 87 C 16 83 19 79 22 80 C 26 80 26 85 23 86 C 27 89 31 83 30 77 C 29 64 25 53 24 40 C 22 29 24 19 30 16 C 35 14 38 25 35 35 C 33 43 26 50 20 57 C 13 66 17 76 25 76 C 33 77 38 72 37 66 C 36 60 30 58 26 62 C 22 65 23 70 27 72 C 19 71 19 63 24 59 C 30 54 39 58 40 66 C 41 75 31 81 23 78 C 19 77 16 76 15 74 Z" fill="currentColor"/>';
+const restShapes = {
+  sixteenth:'M 3 -12 C 2 -9 -1 -8 -4 -9 C -2 -13 -8 -15 -9 -11 C -10 -7 -4 -6 1 -8 L -1 -2 C -2 -1 -4 0 -6 -1 C -4 -5 -10 -6 -11 -3 C -12 2 -6 3 -2 0 L -5 10 H -3 L 5 -12 Z',
+  eighth:'M 4 -8 C 2 -5 -1 -4 -4 -6 C -2 -9 -7 -11 -9 -8 C -11 -3 -4 0 2 -4 L -3 10 H -1 L 6 -8 Z',
+  quarter:'M -4 -15 L 5 -5 L 0 2 L 5 9 C -3 5 -5 11 0 15 C -8 13 -9 6 -2 5 L -7 -1 L -1 -8 Z'
+};
 function figure(event,x,y,beamY) {
   const {duration,rest} = event;
   let mark;
   if (rest) {
     if (duration >= 8) {
-      mark = '<rect x="'+(x-7)+'" y="'+(duration===16?38:43)+'" width="14" height="5" fill="currentColor"/>';
-    } else if (duration >= 4) {
-      mark = '<path d="M'+(x-3)+' 37 l7 8 -5 6 5 6 c-9 -3 -8 1 -5 5" stroke="currentColor" stroke-width="2.5" fill="none"/>';
+      mark = '<rect x="'+(x-6)+'" y="'+(duration===16?38:43)+'" width="12" height="5" fill="currentColor"/>';
     } else {
-      mark = '<path d="M'+(x+5)+' 43 l-7 16 '+(duration===1?'m4 -11 q-11 5 -11 -1 ':'')+'" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="'+(x-3)+'" cy="44" r="3" fill="currentColor"/>';
+      const shape = duration>=4 ? restShapes.quarter : duration===1 ? restShapes.sixteenth : restShapes.eighth;
+      mark = '<path d="'+shape+'" transform="translate('+x+' 48)" fill="currentColor"/>';
     }
     y = 51;
   } else {
@@ -176,7 +181,7 @@ function figure(event,x,y,beamY) {
     if (duration < 16) mark += line(stemX,y,stemX,tip,1.6);
     if (duration <= 3 && beamY===undefined) {
       const direction = stemUp ? 1 : -1;
-      const flag = offset => '<path d="M'+stemX+' '+(tip+offset)+'q 13 '+(direction*9)+' 7 '+(direction*16)+'" stroke="currentColor" stroke-width="2" fill="none"/>';
+      const flag = offset => '<path d="M 0 0 C 2 6 10 8 11 15 C 12 18 10 22 8 24 C 10 17 6 13 0 10 Z" transform="translate('+stemX+' '+(tip+offset)+') scale(1 '+direction+')" fill="currentColor"/>';
       mark += flag(0)+(duration===1?flag(6*direction):"");
     }
   }
@@ -203,8 +208,10 @@ function draw(active=-1) {
     const meter = +$("meter").value;
     const width = meter===4 ? 760 : 520;
     const space = (width-68)/pair.length;
-    let content = [28,38,48,58,68].map(y=>line(7,y,width-5,y)).join("");
-    content += '<text x="14" y="65" font-size="53" font-family="Bravura, Noto Music, Apple Symbols, Segoe UI Symbol, serif">𝄞</text><text x="44" y="45" font-size="18" font-weight="700">'+meter+'<tspan x="44" y="64">4</tspan></text>';
+    let content = [28,38,48,58,68].map(y=>line(7,y,width-5,y,.75)).join("")+trebleClef;
+    if (row===0) {
+      content += '<text x="47" y="46" font-family="Georgia, serif" font-size="21" font-weight="700" fill="currentColor">'+meter+'<tspan x="47" y="67">4</tspan></text>';
+    }
     pair.forEach((events,b)=>{
       let subtick=0, previousX, beamY;
       let beamUntil=-1;
@@ -253,7 +260,10 @@ function draw(active=-1) {
         subtick+=event.subticks;
         index++;
       });
-      content+=line(start+space-6,28,start+space-6,68, row*2+b===bars.length-1?3:1);
+      const barlineX=start+space-6;
+      const finalBar=row*2+b===bars.length-1;
+      content+=line(barlineX,28,barlineX,68,finalBar?3:1);
+      if (finalBar) content+=line(barlineX-5,28,barlineX-5,68);
     });
     return '<svg viewBox="0 0 '+width+' 94" role="img" aria-label="Compassos '+(row*2+1)+' e '+(row*2+2)+'. '+pair.flat().map(eventName).join(', ')+'">'+content+'</svg>';
   }).join("");

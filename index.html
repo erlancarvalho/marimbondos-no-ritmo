@@ -618,13 +618,30 @@ $("blow").onpointerdown=event=>{
   changeBlow(true);
 };
 for (const name of ["pointerup","pointercancel","lostpointercapture"]) $("blow").addEventListener(name,event=>{if(event.isPrimary) changeBlow(false);});
+let spaceHeldForBlow=false;
 window.addEventListener("keydown",event=>{
-  if (event.code!=="Space" || run?.mode!=="play" || event.target.closest("input,select,textarea")) return;
+  if (event.code!=="Space") return;
+  if (spaceHeldForBlow) {
+    event.preventDefault();
+    return;
+  }
+  if (run?.mode!=="play" || event.target.closest("input,select,textarea")) return;
   event.preventDefault();
-  if (!event.repeat) changeBlow(true);
+  if (!event.repeat) {
+    spaceHeldForBlow=true;
+    changeBlow(true);
+  }
 });
-window.addEventListener("keyup",event=>{ if (event.code==="Space" && pressed) { event.preventDefault(); changeBlow(false); } });
-window.addEventListener("blur",()=>changeBlow(false));
+window.addEventListener("keyup",event=>{
+  if (event.code!=="Space" || !spaceHeldForBlow) return;
+  event.preventDefault();
+  spaceHeldForBlow=false;
+  changeBlow(false);
+});
+window.addEventListener("blur",()=>{
+  spaceHeldForBlow=false;
+  changeBlow(false);
+});
 prepare();
 question();
 </script>

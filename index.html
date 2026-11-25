@@ -51,7 +51,7 @@ button:disabled{cursor:default}button:focus-visible,select:focus-visible,input:f
 <label>Compasso<select id="meter"><option value="2">2/4</option><option value="4">4/4</option></select></label>
 <label>Compassos por treino<select id="length"><option value="2">2 compassos</option><option value="4" selected>4 compassos</option></select></label>
 <label>Andamento <span><input id="bpm" type="number" min="40" max="200" value="92" aria-label="Andamento BPM"> BPM</span></label>
-<label>Figuras<select id="level"><option value="0">Básicas</option><option value="1" selected>Com síncopes</option><option value="2">Com semicolcheias</option><option value="3">Com quialteras</option><option value="4">Com ligaduras</option><option value="5">Quiálteras aumentativas</option><option value="6">Quiálteras diminutivas</option></select></label>
+<label>Figuras<select id="level"><option value="0">Básicas</option><option value="1" selected>Com síncopes</option><option value="2">Com semicolcheias</option><option value="3">Com quiálteras</option><option value="4">Com ligaduras</option><option value="5">Semicolcheia + colcheia</option><option value="6">Colcheia pontuada + semicolcheia</option></select></label>
 <label class="check"><input id="click" type="checkbox" checked>Metrônomo ligado</label>
 </div>
 <div class="card"><div class="meta"><span id="phraseLabel"></span><span id="status" role="status">Pronto</span></div><div id="sheet" class="sheet"></div></div>
@@ -78,6 +78,10 @@ const basicPatterns = [[4,4],[2,2,4],[4,-2,2],[2,-2,2,2],[8],[-4,2,2],[2,2,2,2]]
 const syncopatedPatterns = [[2,4,2],[6,-2],[2,2,-2,2],[2,4,-2]];
 const tiedPatterns = [[2,2,"+2",2],[-2,2,"+4"],[2,2,"+2",-2],[4,"+2",2],[2,2,"+4"]];
 const sixteenthPatterns = [[3,1,4],[1,1,2,4],[2,1,1,4],[4,1,1,1,1],[1,1,-2,2,2],[-1,1,2,4]];
+const featuredPatterns = {
+  5:{pattern:[1,2,-1,4], beamedNotes:2},
+  6:{pattern:[3,1,2,2], beamedNotes:3}
+};
 const tuplets = {
   diminuida:{count:3,normal:2,duration:2,label:"Tercina de colcheias (diminutiva, 3:2)"},
   aumentada:{count:2,normal:3,duration:2,label:"Duína de colcheias (aumentativa, 2:3)"}
@@ -114,12 +118,13 @@ function makePhrase(meter,length,level) {
   const repeat = Math.floor(length/2)*cellsPerBar;
   const variations = Array.from({length:cellCount-1},(_,i)=>i).filter(i=>i!==0 && i!==repeat);
   if (!variations.length) variations.push(0);
-  const tupletKinds = level===5 ? ["aumentada"] : level===6 ? ["diminuida"]
-    : level===3 ? shuffle(Object.keys(tuplets))
-    : level>=1 && Math.random()<.48 ? [pick(Object.keys(tuplets))] : [];
+  const featured = featuredPatterns[level];
+  const tupletKinds = level===3 ? shuffle(Object.keys(tuplets))
+    : !featured && level>=1 && Math.random()<.48 ? [pick(Object.keys(tuplets))] : [];
   const tupletSlots = shuffle([...variations,cellCount-1]);
+  const featuredCell = featured ? tupletSlots[0] : -1;
   const groups = new Map(tupletKinds.map((kind,i)=>[tupletSlots[i],kind]));
-  const tieSlots = [...variations,cellCount-1].filter(cell=>!groups.has(cell));
+  const tieSlots = [...variations,cellCount-1].filter(cell=>cell!==featuredCell && !groups.has(cell));
   const tiedCell = tieSlots.length && (level===4 || (level>=1 && Math.random()<.55))
     ? pick(tieSlots) : -1;
   let degree = 0;
@@ -129,9 +134,11 @@ function makePhrase(meter,length,level) {
     const repeatsMotif = cell===0 || cell===repeat;
     const shape = pick(contours);
     const canUseFullBar = meter===4 && level>=1 && cell%2===0 &&
-      !groups.has(cell) && !groups.has(cell+1) && tiedCell!==cell && tiedCell!==cell+1;
+      !groups.has(cell) && !groups.has(cell+1) && tiedCell!==cell && tiedCell!==cell+1 &&
+      featuredCell!==cell && featuredCell!==cell+1;
     const fullBar = canUseFullBar && Math.random()<.2;
-    const pattern = fullBar ? pick(fullBarPatterns)
+    const pattern = cell===featuredCell ? featured.pattern
+      : fullBar ? pick(fullBarPatterns)
       : cell===tiedCell ? pick(closing ? [[2,2,"+4"],[-2,2,"+4"]] : tiedPatterns)
       : groups.has(cell) ? pick(tupletPatterns[groups.get(cell)])
       : closing ? pick(endings)
@@ -147,7 +154,7 @@ function makePhrase(meter,length,level) {
     const offsets = repeatsMotif ? contour : shape;
     const anchor = closing ? 1 : cell===0 ? 1 : repeatsMotif ? 2 : Math.max(1,Math.min(3,degree));
     let attack=0;
-    for (const {value,group,position} of tokens) {
+    for (const [tokenIndex,{value,group,position}] of tokens.entries()) {
       const tied = typeof value==="string";
       const rest = value<0;
       const duration = tied ? Number(value) : Math.abs(value);
@@ -157,6 +164,7 @@ function makePhrase(meter,length,level) {
       }
       bars[Math.floor(cell/cellsPerBar)].push({
         duration, rest, tied, group, position, degree,
+        beamedNotes:cell===featuredCell && tokenIndex===0 ? featured.beamedNotes : undefined,
         subticks:duration*SUBDIVISIONS*(group ? group.normal/group.count : 1)
       });
     }
@@ -239,11 +247,12 @@ function draw(active=-1) {
           content+=tupletMark(event.group,x,end,beamY);
         }
         if (!event.group && eventIndex>beamUntil && !event.rest && event.duration<=3) {
-          const beatEnd=(Math.floor(subtick/(4*SUBDIVISIONS))+1)*4*SUBDIVISIONS;
+          const beatEnd=event.beamedNotes ? Infinity : (Math.floor(subtick/(4*SUBDIVISIONS))+1)*4*SUBDIVISIONS;
           const group=[event];
           let groupEnd=subtick+event.subticks;
           for (const next of events.slice(eventIndex+1)) {
-            if (next.group || next.rest || next.duration>3 || groupEnd+next.subticks>beatEnd) break;
+            if (group.length===event.beamedNotes || next.beamedNotes || next.group ||
+                next.rest || next.duration>3 || groupEnd+next.subticks>beatEnd) break;
             group.push(next);
             groupEnd+=next.subticks;
           }

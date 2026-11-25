@@ -79,12 +79,11 @@ button:disabled{cursor:default}button:focus-visible,select:focus-visible,input:f
 <fieldset id="figureOptions" class="figure-options">
 <legend>Figuras</legend>
 <div>
-<label><input type="checkbox" value="basic" checked>Básicas</label>
+<label><input type="checkbox" value="basic" checked>Básicas e pausas</label>
+<label><input type="checkbox" value="offbeat">Contratempos</label>
 <label><input type="checkbox" value="syncopated" checked>Síncopes</label>
-<label><input type="checkbox" value="sixteenth">Semicolcheias</label>
+<label class="figure-combination"><input type="checkbox" value="sixteenth">Semicolcheias e pontuadas</label>
 <label><input type="checkbox" value="tied">Ligaduras</label>
-<label class="figure-combination"><input type="checkbox" value="shortLong">Semicolcheia + colcheia</label>
-<label class="figure-combination"><input type="checkbox" value="dotted">Colcheia pontuada + semicolcheia + colcheia</label>
 </div>
 </fieldset>
 <label class="check"><input id="click" type="checkbox" checked>Metrônomo ligado</label>
@@ -109,10 +108,11 @@ const figures = {
 };
 // Patterns are two beats long. Negative values are rests.
 // A string such as "+2" or "+4" continues the preceding pitch.
-const basicPatterns = [[4,4],[2,2,4],[4,-2,2],[2,-2,2,2],[8],[-4,2,2],[2,2,2,2]];
-const syncopatedPatterns = [[2,4,2],[6,-2],[2,2,-2,2],[2,4,-2]];
+const basicPatterns = [[4,4],[2,2,4],[4,2,2],[2,-2,2,2],[8],[-4,2,2],[2,2,2,2]];
+const offbeatPatterns = [[-2,2,4],[4,-2,2],[2,2,-2,2],[-2,2,-2,2]];
+const syncopatedPatterns = [[2,4,2],[6,-2],[2,4,-2]];
 const tiedPatterns = [[2,2,"+2",2],[-2,2,"+4"],[2,2,"+2",-2],[4,"+2",2],[2,2,"+4"]];
-const sixteenthPatterns = [[3,1,4],[1,1,2,4],[2,1,1,4],[4,1,1,1,1],[1,1,-2,2,2],[-1,1,2,4]];
+const sixteenthPatterns = [[3,1,4],[1,3,4],[1,1,2,4],[2,1,1,4],[4,1,1,1,1],[1,1,-2,2,2],[-1,1,2,4]];
 const fullBarPatterns = [[16],[-16],[12,4],[4,12],[8,-8],[-8,8]];
 const endings = [[4,4],[2,2,4],[4,-4],[8]];
 const contours = [[0,1,2,1],[0,2,3,2],[0,0,1,2],[0,-1,0,1]];
@@ -130,11 +130,14 @@ function shuffle(items) {
 }
 const figurePatterns = {
   basic:basicPatterns.map(pattern=>({pattern})),
+  offbeat:offbeatPatterns.map(pattern=>({pattern})),
   syncopated:syncopatedPatterns.map(pattern=>({pattern})),
-  sixteenth:sixteenthPatterns.map(pattern=>({pattern})),
-  tied:tiedPatterns.map(pattern=>({pattern})),
-  shortLong:[{pattern:[1,2,-1,4],beamedNotes:2}],
-  dotted:[{pattern:[3,1,2,2],beamedNotes:3}]
+  sixteenth:[
+    ...sixteenthPatterns.map(pattern=>({pattern})),
+    {pattern:[1,2,-1,4],beamedNotes:2},
+    {pattern:[3,1,2,2],beamedNotes:3}
+  ],
+  tied:tiedPatterns.map(pattern=>({pattern}))
 };
 function makePhrase(meter,length,selected) {
   const cellsPerBar = meter/2;
@@ -564,12 +567,11 @@ async function launch(mode) {
 const tie = (start,end,y) => '<path d="M'+start+' '+(y+8)+' Q'+((start+end)/2)+' '+(y+20)+' '+end+' '+(y+8)+' Q'+((start+end)/2)+' '+(y+24)+' '+start+' '+(y+8)+'" fill="currentColor"/>';
 function drawFigureIcons() {
   const previews = {
-    basic:{notes:[4]},
+    basic:{notes:[4,-4]},
+    offbeat:{notes:[-2,2]},
     syncopated:{notes:[2,4,2]},
-    sixteenth:{notes:[1,1],beam:true},
-    tied:{notes:[4,4],tie:true},
-    shortLong:{notes:[1,2],beam:true},
-    dotted:{notes:[3,1,2],beam:true}
+    sixteenth:{notes:[3,1],beam:true},
+    tied:{notes:[4,4],tie:true}
   };
   for (const input of $("figureOptions").querySelectorAll("input")) {
     const preview=previews[input.value];
@@ -578,15 +580,12 @@ function drawFigureIcons() {
     const end=76-start;
     const y=36, beamY=preview.beam ? 7 : undefined;
     let notation=preview.notes.map((duration,index)=>
-      figure({duration},start+spacing*index,y,beamY)).join("");
+      figure({duration:Math.abs(duration),rest:duration<0},start+spacing*index,y,beamY)).join("");
     if (preview.beam) {
       const stemStart=start+noteStemOffset;
       const stemEnd=end+noteStemOffset;
       notation+=line(stemStart,beamY,stemEnd,beamY,3);
-      const shortStem=stemStart+preview.notes.indexOf(1)*spacing;
-      const secondBeamStart=preview.notes[0]===3 ? shortStem-9 : stemStart;
-      const secondBeamEnd=input.value==="sixteenth" ? stemEnd : secondBeamStart+9;
-      notation+=line(secondBeamStart,beamY+5,secondBeamEnd,beamY+5,3);
+      notation+=line(stemEnd-9,beamY+5,stemEnd,beamY+5,3);
     }
     if (preview.tie) notation+=tie(start,end,y);
     const icon=document.createElement("span");

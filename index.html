@@ -42,7 +42,8 @@ button:disabled{cursor:default}button:focus-visible,select:focus-visible,input:f
 .meta{display:flex;justify-content:space-between;align-items:center;gap:8px;font-weight:800}.meta span:last-child{background:#e6e7d5;border-radius:8px;padding:4px 8px}
 .sheet{margin-top:8px}.sheet svg{display:block;width:100%;height:auto}
 #blow{display:grid;grid-template-columns:auto auto;gap:10px;align-items:center;justify-content:center;text-align:left;width:100%;margin-top:10px;min-height:104px;font-size:clamp(23px,5vw,38px);background:#294438;color:var(--cream);touch-action:none;user-select:none}
-#blow small{display:block;font-size:clamp(12px,2.6vw,20px);font-weight:550}#blow.down{background:var(--yellow);color:#231c09}#blow svg{width:36px}
+#blow small{display:block;font-size:clamp(12px,2.6vw,20px);font-weight:550}#blow.down{background:#d89b19;color:#231c09}#blow svg{width:36px}
+.rhythm-result{display:flex;flex-wrap:wrap;gap:6px 18px;margin:12px 0 0;font-size:14px}
 .hint{text-align:center;color:var(--muted);margin:14px 0}.options button.correct{background:#336d39}.options button.incorrect{background:#9c352c}.options button:disabled:not(.correct):not(.incorrect){opacity:.55}
 #quizFigure svg{display:block;width:min(100%,270px);height:auto;margin:6px auto}#quizFeedback{min-height:1.5em}[hidden]{display:none!important}
 @media(max-width:650px){.settings{grid-template-columns:repeat(2,minmax(0,1fr))}.actions button{padding-inline:4px;font-size:14px}}
@@ -69,7 +70,7 @@ button:disabled{cursor:default}button:focus-visible,select:focus-visible,input:f
 </fieldset>
 <label class="check"><input id="click" type="checkbox" checked>Metrônomo ligado</label>
 </div>
-<div class="card"><div class="meta"><span id="phraseLabel"></span><span id="status" role="status">Pronto</span></div><div id="sheet" class="sheet"></div></div>
+<div class="card"><div class="meta"><span id="phraseLabel"></span><span id="status" role="status">Pronto</span></div><div id="sheet" class="sheet"></div><p id="rhythmResult" class="rhythm-result" role="status" hidden></p></div>
 <div class="actions"><button id="start" class="primary">Iniciar</button><button id="listen">Ouvir a frase</button><button id="next">Nova frase</button></div>
 <button id="blow" class="primary" disabled><svg viewBox="0 0 40 48" aria-hidden="true"><path d="M6 15v18m14-28v38m14-28v18" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/></svg><span>Assoprar<small>Segure o botão ou a barra de espaço</small></span></button>
 <p class="hint">Segure pelas ligaduras, solte nas pausas e aperte de novo a cada ataque.</p>
@@ -199,7 +200,7 @@ function eventName(event) {
   return event.rest ? 'Pausa de '+label.toLowerCase() : label+' em '+names[event.degree]+(event.tied?' ligada à anterior':'');
 }
 let bars, timeline, phraseNumber=0, run=null, audio, playingNote, pressed=false, generation=0;
-function draw(active=-1) {
+function draw(active=-1,blowing=false) {
   let index=0;
   $("sheet").innerHTML = Array.from({length:Math.ceil(bars.length/2)},(_,row)=>{
     const pair = bars.slice(row*2,row*2+2);
@@ -218,7 +219,7 @@ function draw(active=-1) {
       events.forEach((event,eventIndex)=>{
         const x=start+14+subtick*spacing;
         const y=58-event.degree*5;
-        if (index===active) content+='<rect x="'+(x-10)+'" y="13" width="22" height="69" rx="6" fill="#ffd34c"/>';
+        if (index===active) content+='<rect x="'+(x-10)+'" y="13" width="22" height="69" rx="6" fill="'+(blowing?'#d89b19':'#ffeb9b')+'"/>';
         if (eventIndex>beamUntil && !event.rest && event.duration<=3) {
           const beatEnd=event.beamedNotes ? Infinity : (Math.floor(subtick/(4*SUBDIVISIONS))+1)*4*SUBDIVISIONS;
           const group=[event];
@@ -383,6 +384,7 @@ function stop() {
     run=null;
   }
   resetBlow();
+  $("rhythmResult").hidden=true;
   $("blow").disabled=true;
   $("start").textContent="Iniciar";
   $("listen").textContent="Ouvir a frase";
@@ -396,11 +398,14 @@ function eventAt(tick) {
 function changeBlow(down) {
   if (!run || run.mode!=="play" || down===pressed) return;
   const tick=tickAt(run);
-  if (down && (tick<0 || eventAt(tick)<0)) return;
+  if (down && (tick*run.unit<-.12 || tick>=timeline.at(-1).end)) return;
   pressed=down;
   run.inputs.push({tick,down});
   $("blow").classList.toggle("down",down);
-  updateBlowTone(eventAt(tick));
+  const index=eventAt(tick);
+  run.active=index;
+  draw(index,pressed);
+  updateBlowTone(index);
 }
 function updateBlowTone(index) {
   const event=timeline[index];
@@ -429,16 +434,68 @@ function score(session,total) {
   }
   return Math.round(100*(.65*matched/expected+.35*accurate/Math.max(1,attacks.length+available.length)));
 }
+function rhythmTendencies(session,total) {
+  const attacks=[];
+  timeline.forEach((event,index)=>{
+    if (event.rest || event.tied) return;
+    let end=event.end;
+    for (let next=index+1;timeline[next]?.tied;next++) end=timeline[next].end;
+    attacks.push({start:event.start,end});
+  });
+  const blows=[];
+  for (const input of session.inputs) {
+    if (input.down) blows.push({start:input.tick});
+    else if (blows.length) blows.at(-1).end=input.tick;
+  }
+  const timing=[], durations=[];
+  attacks.forEach((attack,index)=>{
+    const previous=attacks[index-1]?.start ?? -Infinity;
+    const next=attacks[index+1]?.start ?? Infinity;
+    const tolerance=.12/session.unit;
+    const closest=blows.filter(blow=>blow.start>=(previous+attack.start)/2 &&
+      blow.start<(attack.start+next)/2 && Math.abs(blow.start-attack.start)<=tolerance)
+      .reduce((best,blow)=>!best || Math.abs(blow.start-attack.start)<Math.abs(best.start-attack.start) ? blow : best,null);
+    if (!closest) return;
+    timing.push((closest.start-attack.start)*session.unit*1000);
+    // A button still held at the end of the phrase has no measured release.
+    if (closest.end!==undefined && closest.end<=total) {
+      durations.push(((closest.end-closest.start)-(attack.end-attack.start))*session.unit*1000);
+    }
+  });
+  const describe=(values,neutral,negative,positive)=>{
+    if (!values.length) return "sem dados suficientes";
+    values.sort((a,b)=>a-b);
+    const middle=Math.floor(values.length/2);
+    const median=values.length%2 ? values[middle] : (values[middle-1]+values[middle])/2;
+    if (Math.abs(median)<20) return neutral;
+    return (median<0 ? negative : positive)+" ("+Math.round(Math.abs(median))+" ms)";
+  };
+  return [
+    "Ataque · "+describe(timing,"no tempo","adiantado","atrasado"),
+    "Duração · "+describe(durations,"no valor esperado","mais curta","mais longa")
+  ];
+}
 function update(session) {
   if (run!==session) return;
   const tick=tickAt(session), total=timeline.at(-1).end;
   if (tick>=total) {
     const result=session.mode==="play" ? "Precisão rítmica · "+score(session,total)+"%" : "Escuta concluída";
+    const tendencies=session.mode==="play" ? rhythmTendencies(session,total) : null;
     stop(); draw(); $("status").textContent=result;
+    if (tendencies) {
+      const output=$("rhythmResult");
+      output.replaceChildren(...tendencies.map(text=>{
+        const item=document.createElement("span");
+        item.textContent=text;
+        return item;
+      }));
+      output.hidden=false;
+    }
     return;
   }
   const index=eventAt(tick);
-  if (index!==session.active) { session.active=index; draw(index); }
+  if (index!==session.active) { session.active=index; draw(index,pressed); }
+  if (session.mode==="play") $("blow").disabled=tick*session.unit<-.12;
   if (tick<0) {
     const count=String(Math.ceil(-tick/4));
     if ($("status").textContent!==count) $("status").textContent=count;
@@ -446,7 +503,6 @@ function update(session) {
     const position=session.mode==="play"?"Tocando":"Ouvindo";
     if ($("status").textContent!==position) $("status").textContent=position;
     if (session.mode==="play") {
-      $("blow").disabled=false;
       updateBlowTone(index);
     }
   }

@@ -52,7 +52,14 @@ button:disabled{cursor:default}button:focus-visible,select:focus-visible,input:f
 #blow{display:grid;grid-template-columns:auto auto;gap:10px;align-items:center;justify-content:center;text-align:left;width:100%;margin-top:10px;min-height:104px;font-size:clamp(23px,5vw,38px);background:#294438;color:var(--cream);touch-action:none;user-select:none}
 #blow small{display:block;font-size:clamp(12px,2.6vw,20px);font-weight:550}#blow.down{background:#d89b19;color:#231c09}#blow svg{width:36px}
 .rhythm-result{display:flex;flex-wrap:wrap;gap:6px 18px;margin:12px 0 0;font-size:14px}
-#micHint{margin:12px 0;color:var(--muted);text-align:center}
+.mic-monitor{display:grid;gap:8px;margin-top:10px;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--panel)}
+.mic-monitor-header{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 12px;font-size:14px}
+#micState{color:var(--muted)}
+.mic-monitor.detected #micState{color:var(--yellow);font-weight:750}
+.mic-track{height:8px;overflow:hidden;border-radius:99px;background:#122a21}
+#micLevel{display:block;width:100%;height:100%;background:var(--muted);transform:scaleX(0);transform-origin:left}
+.mic-monitor.detected #micLevel{background:var(--yellow)}
+#micHint{margin:0;color:var(--muted);font-size:13px}
 .hint{text-align:center;color:var(--muted);margin:14px 0}.options button.correct{background:#336d39}.options button.incorrect{background:#9c352c}.options button:disabled:not(.correct):not(.incorrect){opacity:.55}
 #quizFigure svg{display:block;width:min(100%,270px);height:auto;margin:6px auto}#quizFeedback{min-height:1.5em}[hidden]{display:none!important}
 .quiz-explanation{display:block;margin-top:4px;color:var(--muted);font-size:14px}
@@ -94,7 +101,11 @@ button:disabled{cursor:default}button:focus-visible,select:focus-visible,input:f
 <div class="actions"><button id="start" class="primary">Iniciar</button><button id="listen">Ouvir a frase</button><button id="next">Nova frase</button></div>
 <button id="blow" class="primary" disabled><svg viewBox="0 0 40 48" aria-hidden="true"><path d="M6 15v18m14-28v38m14-28v18" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/></svg><span>Assoprar<small>Segure o botão ou a barra de espaço</small></span></button>
 <p id="buttonHint" class="hint">Segure pelas ligaduras, solte nas pausas e aperte de novo a cada ataque.</p>
-<p id="micHint" hidden>Fique em silêncio na contagem e faça um “tá” a cada ataque. Sustente o som nas notas longas. No treino com microfone, o pulso é visual.</p>
+<div id="micMonitor" class="mic-monitor" hidden>
+<div class="mic-monitor-header"><strong>Nível do microfone</strong><span id="micState">Aguardando início</span></div>
+<div class="mic-track" aria-hidden="true"><span id="micLevel"></span></div>
+<p id="micHint">Fique em silêncio na contagem e faça um “tá” a cada ataque. Sustente o som nas notas longas. No treino com microfone, o pulso é visual.</p>
+</div>
 </section>
 <section id="quiz" aria-label="Quiz de figuras" hidden>
 <div class="card"><div class="meta"><span>Que figura é esta?</span><span id="score">0 acertos de 0</span></div><div id="quizFigure"></div></div>
@@ -413,6 +424,7 @@ function stop() {
     run=null;
   }
   resetBlow();
+  updateMicMonitor("Aguardando início",0);
   $("rhythmResult").hidden=true;
   $("blow").disabled=true;
   $("start").textContent="Iniciar";
@@ -464,7 +476,17 @@ function sampleMicrophone(session,tick) {
   analyser.getFloatTimeDomainData(samples);
   let energy=0;
   for (const sample of samples) energy+=sample*sample;
-  detectMicInput(session,tick,Math.sqrt(energy/samples.length));
+  const level=Math.sqrt(energy/samples.length);
+  detectMicInput(session,tick,level);
+  session.mic.displayLevel=Math.max(Math.min(1,Math.sqrt(level/.15)),session.mic.displayLevel*.8);
+  const state=pressed ? "Som detectado" : tick<0 ? "Calibrando · fique em silêncio" : "Ouvindo";
+  updateMicMonitor(state,session.mic.displayLevel,pressed);
+}
+function updateMicMonitor(state,level,detected=false) {
+  const label=$("micState");
+  if (label.textContent!==state) label.textContent=state;
+  $("micMonitor").classList.toggle("detected",detected);
+  $("micLevel").style.transform="scaleX("+level+")";
 }
 function releaseMicrophone() {
   microphoneRequest=null;
@@ -629,14 +651,19 @@ async function launch(mode) {
   let mic;
   if (useMic) {
     $("status").textContent="Aguardando microfone";
+    updateMicMonitor("Aguardando permissão",0);
     try {
       mic=await requestMicrophone();
       if (attempt!==generation || !mic) return;
       mic.noise=0;
       mic.quietSince=null;
+      mic.displayLevel=0;
       mic.track.enabled=true;
     } catch {
-      if (attempt===generation) $("status").textContent="Microfone indisponível. Confira a permissão ou use o botão.";
+      if (attempt===generation) {
+        $("status").textContent="Microfone indisponível. Confira a permissão ou use o botão.";
+        updateMicMonitor("Microfone indisponível",0);
+      }
       return;
     }
   }
@@ -775,7 +802,7 @@ function updateInputMode() {
   const microphone=$("inputMode").value==="microphone";
   $("blow").hidden=microphone;
   $("buttonHint").hidden=microphone;
-  $("micHint").hidden=!microphone;
+  $("micMonitor").hidden=!microphone;
   $("click").disabled=microphone;
 }
 $("inputMode").addEventListener("change",()=>{

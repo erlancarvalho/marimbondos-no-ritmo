@@ -104,7 +104,7 @@ button:disabled{cursor:default}button:focus-visible,select:focus-visible,input:f
 <div id="micMonitor" class="mic-monitor" hidden>
 <div class="mic-monitor-header"><strong>Nível do microfone</strong><span id="micState">Aguardando início</span></div>
 <div class="mic-track" aria-hidden="true"><span id="micLevel"></span></div>
-<p id="micHint">Fique em silêncio na contagem e faça um “tá” a cada ataque. Sustente o som nas notas longas. No treino com microfone, o pulso é visual.</p>
+<p id="micHint">Fique em silêncio na contagem e faça um “tá” a cada ataque. Sustente o som nas notas longas.</p>
 </div>
 </section>
 <section id="quiz" aria-label="Quiz de figuras" hidden>
@@ -499,7 +499,7 @@ function requestMicrophone() {
   if (microphone?.track.readyState==="live") return Promise.resolve(microphone);
   if (microphoneRequest) return microphoneRequest;
   const request=navigator.mediaDevices.getUserMedia({audio:{
-    echoCancellation:false,noiseSuppression:false,autoGainControl:false
+    echoCancellation:true,noiseSuppression:false,autoGainControl:false
   }}).then(stream=>{
     if (microphoneRequest!==request) {
       stream.getTracks().forEach(track=>track.stop());
@@ -675,8 +675,8 @@ async function launch(mode) {
   run=session;
   $(mode==="play"?"start":"listen").textContent="Parar";
   for (let beat=-meter;beat<total/4;beat++) {
-    if (!mic && (beat<0 || $("click").checked)) {
-      session.scheduled.push(metronomeClick(beat%meter===0?1100:780,start+beat*4*unit,.043,.07));
+    if (beat<0 || $("click").checked) {
+      session.scheduled.push(metronomeClick(beat%meter===0?1100:780,start+beat*4*unit,.043,mic ? .04 : .07));
     }
   }
   if (mode==="listen") {
@@ -803,7 +803,6 @@ function updateInputMode() {
   $("blow").hidden=microphone;
   $("buttonHint").hidden=microphone;
   $("micMonitor").hidden=!microphone;
-  $("click").disabled=microphone;
 }
 $("inputMode").addEventListener("change",()=>{
   stop(); releaseMicrophone(); draw(); updateInputMode();

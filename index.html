@@ -5,6 +5,15 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Marimbondos no Ritmo</title>
 <style>
+/* Bravura by Steinberg, SIL Open Font License 1.1. */
+@font-face {
+  font-family: Bravura;
+  src: url("https://cdn.jsdelivr.net/gh/steinbergmedia/bravura@bravura-1.482/redist/woff/Bravura.woff2") format("woff2"),
+       url("https://cdn.jsdelivr.net/gh/steinbergmedia/bravura@bravura-1.482/redist/woff/Bravura.woff") format("woff");
+  font-display: block;
+}
+.music-glyph{font:40px Bravura;fill:currentColor}
+
 *{box-sizing:border-box}
 :root{color-scheme:dark;--cream:#fff9e8;--muted:#c0cfc2;--border:#476357;--yellow:#f7ce50;--panel:#203b31}
 body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% 4%,#2b4b3d,#132923 70%);color:var(--cream);font:16px system-ui,sans-serif}
@@ -156,45 +165,46 @@ function makePhrase(meter,length,level) {
   return bars;
 }
 const line = (x1,y1,x2,y2,width=1) => '<path d="M'+x1+' '+y1+'L'+x2+' '+y2+'" stroke="currentColor" stroke-width="'+width+'" fill="none"/>';
-const trebleClef = '<path d="M 15 74 C 10 63 15 54 24 44 C 33 34 36 23 32 21 C 27 20 25 29 26 40 C 27 53 31 63 32 76 C 34 89 24 94 19 87 C 16 83 19 79 22 80 C 26 80 26 85 23 86 C 27 89 31 83 30 77 C 29 64 25 53 24 40 C 22 29 24 19 30 16 C 35 14 38 25 35 35 C 33 43 26 50 20 57 C 13 66 17 76 25 76 C 33 77 38 72 37 66 C 36 60 30 58 26 62 C 22 65 23 70 27 72 C 19 71 19 63 24 59 C 30 54 39 58 40 66 C 41 75 31 81 23 78 C 19 77 16 76 15 74 Z" fill="currentColor"/>';
-const restShapes = {
-  sixteenth:'M 3 -12 C 2 -9 -1 -8 -4 -9 C -2 -13 -8 -15 -9 -11 C -10 -7 -4 -6 1 -8 L -1 -2 C -2 -1 -4 0 -6 -1 C -4 -5 -10 -6 -11 -3 C -12 2 -6 3 -2 0 L -5 10 H -3 L 5 -12 Z',
-  eighth:'M 4 -8 C 2 -5 -1 -4 -4 -6 C -2 -9 -7 -11 -9 -8 C -11 -3 -4 0 2 -4 L -3 10 H -1 L 6 -8 Z',
-  quarter:'M -4 -15 L 5 -5 L 0 2 L 5 9 C -3 5 -5 11 0 15 C -8 13 -9 6 -2 5 L -7 -1 L -1 -8 Z'
+// SMuFL uses a 40-unit em for the staff's 10-unit line spacing.
+const glyph = (code,x,y,anchor="middle") =>
+  '<text class="music-glyph" x="'+x+'" y="'+y+'" text-anchor="'+anchor+'">&#x'+code.toString(16)+';</text>';
+const restGlyphs = {
+  1:0xE4E7, 2:0xE4E6, 3:0xE4E6, 4:0xE4E5,
+  6:0xE4E5, 8:0xE4E4, 12:0xE4E4, 16:0xE4E3
 };
+const noteStemOffset = 5.6;
 function figure(event,x,y,beamY) {
   const {duration,rest} = event;
   let mark;
   if (rest) {
-    if (duration >= 8) {
-      mark = '<rect x="'+(x-6)+'" y="'+(duration===16?38:43)+'" width="12" height="5" fill="currentColor"/>';
-    } else {
-      const shape = duration>=4 ? restShapes.quarter : duration===1 ? restShapes.sixteenth : restShapes.eighth;
-      mark = '<path d="'+shape+'" transform="translate('+x+' 48)" fill="currentColor"/>';
-    }
-    y = 51;
+    y = duration===16 ? 38 : 48;
+    mark = glyph(restGlyphs[duration],x,y);
   } else {
-    const stemUp = beamY!==undefined || y >= 48;
-    const stemX = x+(stemUp?6:-6);
-    const tip = beamY ?? y+(stemUp?-28:28);
-    mark = '<ellipse cx="'+x+'" cy="'+y+'" rx="6.5" ry="4.1" transform="rotate(-18 '+x+' '+y+')" stroke="currentColor" stroke-width="1.5" fill="'+(duration>=8?'none':'currentColor')+'"/>';
-    if (duration < 16) mark += line(stemX,y,stemX,tip,1.6);
-    if (duration <= 3 && beamY===undefined) {
-      const direction = stemUp ? 1 : -1;
-      const flag = offset => '<path d="M 0 0 C 2 6 10 8 11 15 C 12 18 10 22 8 24 C 10 17 6 13 0 10 Z" transform="translate('+stemX+' '+(tip+offset)+') scale(1 '+direction+')" fill="currentColor"/>';
-      mark += flag(0)+(duration===1?flag(6*direction):"");
+    const head = duration===16 ? 0xE0A2 : duration>=8 ? 0xE0A3 : 0xE0A4;
+    mark = glyph(head,x,y);
+    if (duration<16) {
+      const stemUp = beamY!==undefined || y>=48;
+      const stemX = x+(stemUp ? noteStemOffset : -noteStemOffset);
+      const tip = beamY ?? y+(stemUp ? -32 : 32);
+      mark += line(stemX,y,stemX,tip,1.3);
+      if (duration<=3 && beamY===undefined) {
+        const flag = (duration===1 ? 0xE242 : 0xE240)+(stemUp ? 0 : 1);
+        mark += glyph(flag,stemX-.65,tip,"start");
+      }
     }
   }
-  if ([3,6,12].includes(duration)) mark += '<circle cx="'+(x+12)+'" cy="'+(y-2)+'" r="1.8" fill="currentColor"/>';
+  if ([3,6,12].includes(duration)) {
+    mark += glyph(0xE1E7,x+12,y%10===8 ? y-5 : y);
+  }
   return mark;
 }
 function tupletMark(group,start,end,beamY) {
-  const center=(start+end)/2+6;
+  const center=(start+end)/2+noteStemOffset;
   const top=beamY-7;
-  return line(start+6,beamY,end+6,beamY,3)
+  return line(start+noteStemOffset,beamY,end+noteStemOffset,beamY,3)
     +line(start,top,start,top+4)+line(start,top,center-8,top)
     +line(center+8,top,end+9,top)+line(end+9,top,end+9,top+4)
-    +'<text x="'+center+'" y="'+(top+4)+'" font-size="13" font-weight="750" text-anchor="middle">'+group.count+'</text>';
+    +glyph(0xE880+group.count,center,top);
 }
 function eventName(event) {
   const label = event.group ? event.group.label : figures[event.duration][0];
@@ -208,9 +218,9 @@ function draw(active=-1) {
     const meter = +$("meter").value;
     const width = meter===4 ? 760 : 520;
     const space = (width-68)/pair.length;
-    let content = [28,38,48,58,68].map(y=>line(7,y,width-5,y,.75)).join("")+trebleClef;
+    let content = [28,38,48,58,68].map(y=>line(7,y,width-5,y,.75)).join("")+glyph(0xE050,11,58,"start");
     if (row===0) {
-      content += '<text x="47" y="46" font-family="Georgia, serif" font-size="21" font-weight="700" fill="currentColor">'+meter+'<tspan x="47" y="67">4</tspan></text>';
+      content += glyph(0xE080+meter,48,38)+glyph(0xE084,48,58);
     }
     pair.forEach((events,b)=>{
       let subtick=0, previousX, beamY;
@@ -240,8 +250,8 @@ function draw(active=-1) {
             beamUntil=eventIndex+group.length-1;
             beamY=Math.min(...group.map(note=>58-note.degree*5))-23;
             const xEnd=x+(groupEnd-subtick-group.at(-1).subticks)*spacing;
-            content+=line(x+6,beamY,xEnd+6,beamY,3);
-            let position=x+6;
+            content+=line(x+noteStemOffset,beamY,xEnd+noteStemOffset,beamY,3);
+            let position=x+noteStemOffset;
             group.forEach((note,i)=>{
               const following=group[i+1];
               if (note.duration===1 && following?.duration===1) {

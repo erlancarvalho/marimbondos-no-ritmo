@@ -62,7 +62,6 @@ button:disabled{cursor:default}button:focus-visible,select:focus-visible,input:f
 <label><input type="checkbox" value="basic" checked>Básicas</label>
 <label><input type="checkbox" value="syncopated" checked>Síncopes</label>
 <label><input type="checkbox" value="sixteenth">Semicolcheias</label>
-<label><input type="checkbox" value="tuplet">Quiálteras</label>
 <label><input type="checkbox" value="tied">Ligaduras</label>
 <label><input type="checkbox" value="shortLong">Semicolcheia + colcheia</label>
 <label><input type="checkbox" value="dotted">Colcheia pontuada + semicolcheia + colcheia</label>
@@ -88,20 +87,12 @@ const figures = {
   6:["Semínima pontuada","𝅘𝅥","𝄽"],8:["Mínima","𝅗𝅥","𝄼"],
   12:["Mínima pontuada","𝅗𝅥","𝄼"],16:["Semibreve","𝅝","𝄻"]
 };
-// Patterns are two beats long. Negative values are rests, named tuplets
-// expand into a group, and "+2" or "+4" continues the preceding pitch.
+// Patterns are two beats long. Negative values are rests.
+// A string such as "+2" or "+4" continues the preceding pitch.
 const basicPatterns = [[4,4],[2,2,4],[4,-2,2],[2,-2,2,2],[8],[-4,2,2],[2,2,2,2]];
 const syncopatedPatterns = [[2,4,2],[6,-2],[2,2,-2,2],[2,4,-2]];
 const tiedPatterns = [[2,2,"+2",2],[-2,2,"+4"],[2,2,"+2",-2],[4,"+2",2],[2,2,"+4"]];
 const sixteenthPatterns = [[3,1,4],[1,1,2,4],[2,1,1,4],[4,1,1,1,1],[1,1,-2,2,2],[-1,1,2,4]];
-const tuplets = {
-  diminuida:{count:3,normal:2,duration:2,label:"Tercina de colcheias (diminutiva, 3:2)"},
-  aumentada:{count:2,normal:3,duration:2,label:"Duína de colcheias (aumentativa, 2:3)"}
-};
-const tupletPatterns = {
-  diminuida:[["diminuida",4],[4,"diminuida"],[-4,"diminuida"],["diminuida",2,2]],
-  aumentada:[["aumentada",2],[2,"aumentada"],[-2,"aumentada"],["aumentada",-2]]
-};
 const fullBarPatterns = [[16],[-16],[12,4],[4,12],[8,-8],[-8,8]];
 const endings = [[4,4],[2,2,4],[4,-4],[8]];
 const contours = [[0,1,2,1],[0,2,3,2],[0,0,1,2],[0,-1,0,1]];
@@ -121,7 +112,6 @@ const figurePatterns = {
   basic:basicPatterns.map(pattern=>({pattern})),
   syncopated:syncopatedPatterns.map(pattern=>({pattern})),
   sixteenth:sixteenthPatterns.map(pattern=>({pattern})),
-  tuplet:Object.values(tupletPatterns).flat().map(pattern=>({pattern})),
   tied:tiedPatterns.map(pattern=>({pattern})),
   shortLong:[{pattern:[1,2,-1,4],beamedNotes:2}],
   dotted:[{pattern:[3,1,2,2],beamedNotes:3}]
@@ -148,18 +138,11 @@ function makePhrase(meter,length,selected) {
     const {pattern,beamedNotes} = assigned.get(cell) ?? (fullBar ? {pattern:pick(fullBarPatterns)}
       : closing && categories.includes("basic") ? {pattern:pick(endings)}
       : repeatsMotif ? motif : pick(patterns));
-    const tokens = pattern.flatMap(value=>{
-      const group=tuplets[value];
-      if (!group) return [{value}];
-      return Array.from({length:group.count},(_,position)=>({
-        value:group.duration, group, position
-      }));
-    });
-    const lastAttack = tokens.filter(token=>typeof token.value==="number" && token.value>0).length;
+    const lastAttack = pattern.filter(value=>typeof value==="number" && value>0).length;
     const offsets = repeatsMotif ? contour : shape;
     const anchor = closing ? 1 : cell===0 ? 1 : repeatsMotif ? 2 : Math.max(1,Math.min(3,degree));
     let attack=0;
-    for (const [tokenIndex,{value,group,position}] of tokens.entries()) {
+    for (const [tokenIndex,value] of pattern.entries()) {
       const tied = typeof value==="string";
       const rest = value<0;
       const duration = tied ? Number(value) : Math.abs(value);
@@ -168,9 +151,9 @@ function makePhrase(meter,length,selected) {
         degree = closing && attack===lastAttack ? 0 : Math.max(0,Math.min(5,anchor+offset));
       }
       bars[Math.floor(cell/cellsPerBar)].push({
-        duration, rest, tied, group, position, degree,
+        duration, rest, tied, degree,
         beamedNotes:tokenIndex===0 ? beamedNotes : undefined,
-        subticks:duration*SUBDIVISIONS*(group ? group.normal/group.count : 1)
+        subticks:duration*SUBDIVISIONS
       });
     }
     if (fullBar) cell++;
@@ -211,17 +194,8 @@ function figure(event,x,y,beamY) {
   }
   return mark;
 }
-function tupletMark(group,start,end,beamY) {
-  const center=(start+end)/2+noteStemOffset;
-  const top=beamY-7;
-  const ratio=[0xE880+group.count,0xE88A,0xE880+group.normal];
-  return line(start+noteStemOffset,beamY,end+noteStemOffset,beamY,3)
-    +line(start,top,start,top+4)+line(start,top,center-14,top)
-    +line(center+14,top,end+9,top)+line(end+9,top,end+9,top+4)
-    +ratio.map((code,index)=>glyph(code,center+(index-1)*8,top)).join("");
-}
 function eventName(event) {
-  const label = event.group ? event.group.label : figures[event.duration][0];
+  const label = figures[event.duration][0];
   return event.rest ? 'Pausa de '+label.toLowerCase() : label+' em '+names[event.degree]+(event.tied?' ligada à anterior':'');
 }
 let bars, timeline, phraseNumber=0, run=null, audio, playingNote, pressed=false, generation=0;
@@ -245,18 +219,12 @@ function draw(active=-1) {
         const x=start+14+subtick*spacing;
         const y=58-event.degree*5;
         if (index===active) content+='<rect x="'+(x-10)+'" y="13" width="22" height="69" rx="6" fill="#ffd34c"/>';
-        if (event.group && event.position===0) {
-          const topDegree=Math.max(...events.slice(eventIndex,eventIndex+event.group.count).map(note=>note.degree));
-          beamY=Math.max(18,58-topDegree*5-21);
-          const end=x+event.subticks*(event.group.count-1)*spacing;
-          content+=tupletMark(event.group,x,end,beamY);
-        }
-        if (!event.group && eventIndex>beamUntil && !event.rest && event.duration<=3) {
+        if (eventIndex>beamUntil && !event.rest && event.duration<=3) {
           const beatEnd=event.beamedNotes ? Infinity : (Math.floor(subtick/(4*SUBDIVISIONS))+1)*4*SUBDIVISIONS;
           const group=[event];
           let groupEnd=subtick+event.subticks;
           for (const next of events.slice(eventIndex+1)) {
-            if (group.length===event.beamedNotes || next.beamedNotes || next.group ||
+            if (group.length===event.beamedNotes || next.beamedNotes ||
                 next.rest || next.duration>3 || groupEnd+next.subticks>beatEnd) break;
             group.push(next);
             groupEnd+=next.subticks;
@@ -279,7 +247,7 @@ function draw(active=-1) {
             });
           }
         }
-        content+=figure(event,x,y,event.group || eventIndex<=beamUntil ? beamY : undefined);
+        content+=figure(event,x,y,eventIndex<=beamUntil ? beamY : undefined);
         if (event.tied) content+=tie(previousX,x,y);
         previousX=x;
         subtick+=event.subticks;
@@ -520,21 +488,14 @@ async function launch(mode) {
 }
 const tie = (start,end,y) => '<path d="M'+start+' '+(y+8)+' Q'+((start+end)/2)+' '+(y+20)+' '+end+' '+(y+8)+' Q'+((start+end)/2)+' '+(y+24)+' '+start+' '+(y+8)+'" fill="currentColor"/>';
 const quizPool = [...new Set([
-  ...basicPatterns,...syncopatedPatterns,...sixteenthPatterns,...tiedPatterns,...endings,...fullBarPatterns,
-  ...Object.values(tupletPatterns).flat()
+  ...basicPatterns,...syncopatedPatterns,...sixteenthPatterns,...tiedPatterns,...endings,...fullBarPatterns
 ].flat().filter(value=>Number.isFinite(+value)).map(Number))].map(value=>{
   const duration=Math.abs(value), rest=value<0, name=figures[duration][0];
   return {duration,rest,label:rest ? "Pausa de "+name.toLowerCase() : name};
 });
-quizPool.push(...Object.values(tuplets),{tied:true,label:"Ligadura de prolongamento"});
+quizPool.push({tied:true,label:"Ligadura de prolongamento"});
 let correct=0,answers=0,lastQuiz,deck=[];
 function quizNotation(target) {
-  if (target.count) {
-    const start=target.count===3 ? 28 : 43;
-    const end=138-start, beam=29;
-    return tupletMark(target,start,end,beam)+Array.from({length:target.count},(_,i)=>
-      figure(target,start+(end-start)*i/(target.count-1),58-i*5,beam)).join("");
-  }
   if (target.tied) {
     const note={duration:4};
     return figure(note,43,48)+figure(note,95,48)+tie(43,95,48);
